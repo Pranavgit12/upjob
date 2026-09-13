@@ -1,0 +1,221 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #0a0a0a;
+  --primary: #0a0a0a;
+  --accent: #2563eb;
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
+  --border: #e4e4e7;
+  --card: #ffffff;
+  --card-foreground: #0a0a0a;
+  --ring: #0a0a0a;
+  --radius: 0.75rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-accent: var(--accent);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-ring: var(--ring);
+  --radius: var(--radius);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+@layer utilities {
+  .container-upjob {
+    @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.5s ease-out forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+@keyframes modalOverlayIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalContentIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-modal-overlay-in {
+  animation: modalOverlayIn 0.2s ease-out forwards;
+}
+
+.animate-modal-content-in {
+  animation: modalContentIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.top-companies-section {
+  overflow: hidden;
+}
+
+.top-companies__viewport {
+  position: relative;
+  overflow: hidden;
+  padding: 0.25rem 0;
+  mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
+}
+
+.top-companies__track {
+  display: flex;
+  width: max-content;
+  align-items: center;
+  gap: 1rem;
+  will-change: transform;
+}
+
+.top-companies__track--right {
+  animation: topCompaniesRight 42s linear infinite;
+}
+
+.top-companies__track--left {
+  animation: topCompaniesLeft 42s linear infinite;
+}
+
+.top-companies__marquees:hover .top-companies__track {
+  animation-play-state: paused;
+}
+
+.top-companies__card {
+  display: flex;
+  height: 5.5rem;
+  width: 10.5rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgb(228 228 231 / 0.9);
+  border-radius: 1rem;
+  background: white;
+  padding: 1.25rem;
+  box-shadow: 0 4px 16px rgb(24 24 27 / 0.04);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.top-companies__card:hover {
+  transform: scale(1.04);
+  box-shadow: 0 10px 24px rgb(24 24 27 / 0.1);
+}
+
+.top-companies__logo {
+  max-height: 3rem;
+  width: 100%;
+  object-fit: contain;
+  filter: none;
+  opacity: 0.92;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.top-companies__card:hover .top-companies__logo {
+  opacity: 1;
+  transform: scale(1.04);
+}
+
+@keyframes topCompaniesRight {
+  from {
+    transform: translate3d(-50%, 0, 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes topCompaniesLeft {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+@media (max-width: 640px) {
+  .top-companies__track {
+    gap: 0.75rem;
+  }
+
+  .top-companies__track--right {
+    animation-duration: 48s;
+  }
+
+  .top-companies__track--left {
+    animation-duration: 48s;
+  }
+
+  .top-companies__card {
+    height: 4.5rem;
+    width: 7.75rem;
+    border-radius: 0.85rem;
+    padding: 0.9rem;
+  }
+
+  .top-companies__logo {
+    max-height: 2.35rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .top-companies__track {
+    animation: none;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
+  }
+}

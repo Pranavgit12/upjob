@@ -1,0 +1,455 @@
+// UpJob database schema — PostgreSQL + Prisma
+// Production database model backing the live deployed app.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  CANDIDATE
+  EMPLOYER
+  ADMIN
+}
+
+enum JobType {
+  INTERNSHIP
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+}
+
+enum WorkMode {
+  REMOTE
+  HYBRID
+  ON_SITE
+}
+
+enum JobStatus {
+  OPEN
+  CLOSED
+  DRAFT
+}
+
+enum ApplicationStatus {
+  APPLIED
+  UNDER_REVIEW
+  SHORTLISTED
+  INTERVIEW
+  SELECTED
+  REJECTED
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  name          String
+  role          Role      @default(CANDIDATE)
+  phone         String?
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  profiles           CandidateProfile?
+  employer           Employer?
+  applications       Application[]
+  savedJobs          SavedJob[]
+  resumes            Resume[]
+  interviews         Interview[]
+  notifications      Notification[]
+  reports            Report[]
+  verifiedCompanies  Company[] @relation("CompanyVerifier")
+  stores             UserStore[]
+}
+
+model CandidateProfile {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id])
+  headline           String?
+  about              String?
+  location           String?
+  photoUrl           String?
+  github             String?
+  linkedin           String?
+  portfolio          String?
+  skills             String[]
+  education          Education?
+  experience         Experience[]
+  projects           Project[]
+  certifications     Certification[]
+  profileCompletion  Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model Education {
+  id             String   @id @default(cuid())
+  profileId      String   @unique
+  profile        CandidateProfile @relation(fields: [profileId], references: [id])
+  degree         String
+  institution    String
+  field          String?
+  graduationYear Int
+}
+
+model Experience {
+  id          String   @id @default(cuid())
+  profileId   String
+  profile     CandidateProfile @relation(fields: [profileId], references: [id])
+  role        String
+  company     String
+  startDate   DateTime
+  endDate     DateTime?
+  current     Boolean  @default(false)
+  description String?
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  profileId   String
+  profile     CandidateProfile @relation(fields: [profileId], references: [id])
+  name        String
+  description String
+  link        String?
+}
+
+model Certification {
+  id       String   @id @default(cuid())
+  profileId String
+  profile  CandidateProfile @relation(fields: [profileId], references: [id])
+  name     String
+  issuer   String
+  year     String?
+}
+
+model Employer {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id])
+  companyId   String?
+  company     Company?  @relation(fields: [companyId], references: [id])
+  title       String?
+  createdAt   DateTime @default(now())
+}
+
+model Company {
+  id            String   @id @default(cuid())
+  name          String   @unique
+  slug          String   @unique
+  logo          String?
+  industry      String
+  location      String
+  companySize   String
+  description   String
+  website       String?
+  founded       String?
+  headquarters  String?
+  isPartner     Boolean  @default(false)
+  isVerified    Boolean  @default(false)
+  isFeatured    Boolean  @default(false)
+  hiringStatus  String   @default("unknown")
+  verifiedById  String?
+  verifiedBy    User?    @relation("CompanyVerifier", fields: [verifiedById], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  jobs          Job[]
+  employers     Employer[]
+  verification  CompanyVerification?
+}
+
+model Job {
+  id                 String    @id @default(cuid())
+  title              String
+  companyId          String
+  company            Company   @relation(fields: [companyId], references: [id])
+  category           String
+  location           String
+  type               JobType
+  workMode           WorkMode
+  salaryMin          Int
+  salaryMax          Int?
+  isStipend          Boolean   @default(false)
+  experience         String
+  skills             String[]
+  description        String
+  responsibilities   String[]
+  requirements       String[]
+  benefits           String[]
+  status             JobStatus @default(OPEN)
+  isModerated        Boolean   @default(false)
+  applicationDeadline DateTime?
+  vacancy            Int       @default(1)
+  createdBy          String
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  applications       Application[]
+  savedBy            SavedJob[]
+}
+
+model Application {
+  id          String            @id @default(cuid())
+  userId      String
+  user        User              @relation(fields: [userId], references: [id])
+  jobId       String
+  job         Job               @relation(fields: [jobId], references: [id])
+  status      ApplicationStatus @default(APPLIED)
+  coverLetter String?
+  // HR decision support surfaced in the recruiter dashboard.
+  recruiterNotes String?
+createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  resumeId    String?
+  resume      Resume?           @relation(fields: [resumeId], references: [id])
+  interviews  Interview[]
+  aiInterview AiInterview?
+
+  @@unique([userId, jobId])
+}
+
+model SavedJob {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  jobId     String
+  job       Job      @relation(fields: [jobId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([userId, jobId])
+}
+
+model Resume {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  fileName      String
+  fileUrl       String
+  fileSize      Int
+  mimeType      String?
+  path          String?
+  parsedText    String?
+  structuredData Json?
+  isPrimary     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  applications  Application[]
+}
+
+model Interview {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  applicationId String
+  application Application @relation(fields: [applicationId], references: [id])
+  scheduledAt DateTime
+  type        String
+  meetingLink String?
+  notes       String?
+  status      String   @default("scheduled") // scheduled | started | completed | cancelled
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model CompanyVerification {
+  id          String   @id @default(cuid())
+  companyId   String   @unique
+  company     Company  @relation(fields: [companyId], references: [id])
+  status      String   @default("pending")
+  documents   String[]
+  reviewedAt  DateTime?
+  reviewedBy  String?
+  createdAt   DateTime @default(now())
+}
+
+model Report {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  type        String // JOB | COMPANY
+  targetId    String
+  reason      String
+  status      String   @default("open")
+  resolvedAt  DateTime?
+  createdAt   DateTime @default(now())
+}
+
+model Skill {
+  id   String @id @default(cuid())
+  name String @unique
+}
+
+model JobCategory {
+  id    String @id @default(cuid())
+  name  String @unique
+  slug  String @unique
+  icon  String?
+}
+
+// Generic per-user key-value store that backs the app's store.ts abstraction.
+// Structured models above (SavedJob, Application, CandidateProfile, etc.) remain
+// available for relational access; this bridges the current client store 1:1.
+model UserStore {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  key       String
+  value     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, key])
+}
+
+enum AiInterviewStatus {
+  INVITED
+  IN_PROGRESS
+  COMPLETED
+  EXPIRED
+}
+
+// AI-powered screening interview. Employer creates one per application and
+// shares the public invite link; the candidate takes a ~30-minute adaptive
+// video interview driven by Google Gemini (voice via browser TTS/STT). The
+// employer (HR) reviews the score breakdown, report, transcript and integrity
+// events. AI output is decision-support only — HR makes the final call.
+model AiInterview {
+  id            String            @id @default(cuid())
+  applicationId String            @unique
+  application   Application       @relation(fields: [applicationId], references: [id])
+  inviteToken   String            @unique
+  slug          String?           @unique
+  interviewerId String?
+  interviewer   Interviewer?      @relation(fields: [interviewerId], references: [id])
+  anonymous     Boolean           @default(false)
+  themeColor    String?
+  status        AiInterviewStatus @default(INVITED)
+  currentStep   Int               @default(0)
+  maxSteps      Int               @default(6)
+  durationMinutes Int             @default(30)
+  questions     Json?
+  score         Int?
+  summary       String?
+  verdict       String?
+  strengths     String[]
+  concerns      String[]
+  // CV snapshot + structured parse used to personalize the interview
+  cvText        String?
+  cvData        Json?
+  // Consent + privacy
+  consentAcceptedAt DateTime?
+  recordingConsent  Boolean       @default(false)
+  // Runtime
+  currentPhase  String?
+  durationSeconds Int?
+  // Evaluation report
+  categoryScores Json?
+  recommendation String?
+  report        Json?
+  recordingDriveFileId String?
+  recordingMimeType   String?
+  // Config snapshot used for this interview (weights, thresholds, etc.)
+  config        Json?
+  startedAt     DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  messages AiInterviewMessage[]
+  answers  AiInterviewAnswer[]
+  integrityEvents IntegrityEvent[]
+  feedback InterviewFeedback?
+}
+
+// FoloUp-style interviewer personas. Each interview is hosted by a named
+// interviewer whose traits (empathy, exploration, rapport, speed) steer the
+// AI's tone, pacing and question depth.
+model Interviewer {
+  id          String    @id @default(cuid())
+  key         String    @unique // stable key, e.g. "riley-builder"
+  name        String
+  description String?
+  image       String?
+  empathy     Int       @default(70) // 0-100
+  exploration Int       @default(70) // 0-100
+  rapport     Int       @default(70) // 0-100
+  speed       Int       @default(50) // 0-100 (higher = faster pace)
+  voiceHint   String?              // browser SpeechSynthesis voice hint
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  interviews AiInterview[]
+}
+
+// Post-interview feedback collected from the candidate at the end of the call
+// (satisfaction rating + comment). Mirrors FoloUp's feedback collection.
+model InterviewFeedback {
+  id             String        @id @default(cuid())
+  interviewId    String        @unique
+  interview      AiInterview   @relation(fields: [interviewId], references: [id])
+  satisfaction   Int           // 1-5
+  comment        String?
+  wouldRecommend Boolean       @default(false)
+  attendance     String?       // attended | no_show
+  createdAt      DateTime      @default(now())
+}
+
+model AiInterviewMessage {
+  id          String     @id @default(cuid())
+  interviewId String
+  interview   AiInterview @relation(fields: [interviewId], references: [id])
+  role        String // "ai" | "candidate"
+  content     String
+  createdAt   DateTime   @default(now())
+}
+
+// One structured spoken answer in the interview (STT transcript + timing).
+model AiInterviewAnswer {
+  id            String   @id @default(cuid())
+  interviewId   String
+  interview     AiInterview @relation(fields: [interviewId], references: [id])
+  question      String
+  category      String?
+  difficulty    String?
+  competency    String?
+  transcript    String
+  durationSeconds Int    @default(0)
+  questionIndex Int      @default(0)
+  startedAt     DateTime @default(now())
+  createdAt     DateTime @default(now())
+}
+
+// Browser-level integrity signals (tab switches, camera/mic drops, blur, refresh).
+// These are logged for HR review — never used to auto-reject.
+model IntegrityEvent {
+  id          String   @id @default(cuid())
+  interviewId String
+  interview   AiInterview @relation(fields: [interviewId], references: [id])
+  eventType   String   // tab_switch | camera_disconnected | mic_disconnected | candidate_not_visible | blur | refresh | multi_face | interruption
+  metadata    Json?
+  occurredAt  DateTime @default(now())
+}
+
+// Per-role interview configuration (weights, duration, thresholds, settings).
+// "role" = job slug. Seeded with defaults; editable by admin.
+model InterviewConfig {
+  role      String   @id
+  data      Json
+  updatedAt DateTime @updatedAt
+}
