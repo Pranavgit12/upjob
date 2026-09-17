@@ -46,7 +46,7 @@ enum ApplicationStatus {
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
-  passwordHash  String
+  passwordHash  String?
   name          String
   role          Role      @default(CANDIDATE)
   phone         String?
@@ -361,7 +361,7 @@ model AiInterview {
   categoryScores Json?
   recommendation String?
   report        Json?
-  recordingDriveFileId String?
+  recordingFileId String?
   recordingMimeType   String?
   // Config snapshot used for this interview (weights, thresholds, etc.)
   config        Json?

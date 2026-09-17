@@ -30,6 +30,9 @@ import { CompanyLogo } from "@/components/company-logo";
 import { cn } from "@/lib/utils";
 import type { Company } from "@/types";
 
+type CrmSort = "recent" | "score" | "cv" | "name";
+type CrmFilter = "all" | "shortlisted" | "interview" | "selected" | "rejected" | "invited";
+
 const TABS = [
   { key: "companies", label: "Companies", icon: Building2 },
   { key: "users", label: "Users", icon: Users },
@@ -155,6 +158,9 @@ export default function AdminPage() {
   });
   const [invite, setInvite] = React.useState<string | null>(null);
   const [inviteCopied, setInviteCopied] = React.useState(false);
+  const [crmQuery, setCrmQuery] = React.useState("");
+  const [crmFilter, setCrmFilter] = React.useState<CrmFilter>("all");
+  const [crmSort, setCrmSort] = React.useState<CrmSort>("recent");
 
   const loadCandidates = React.useCallback(async () => {
     const data = await getJSON<{ applications: AdminCandidate[] }>("/api/admin/applications");
@@ -361,6 +367,48 @@ export default function AdminPage() {
       .includes(query.toLowerCase())
   );
 
+  const crmSummary = React.useMemo(() => {
+    const strong = candidates.filter((c) => (c.interview?.overall ?? c.cvScore) >= 65).length;
+    const shortlisted = candidates.filter((c) => c.status === "SHORTLISTED" || c.status === "INTERVIEW" || c.status === "SELECTED").length;
+    const interviewed = candidates.filter((c) => c.interview?.status === "COMPLETED").length;
+    const invited = candidates.filter((c) => c.interview?.status === "INVITED" || c.interview?.status === "IN_PROGRESS").length;
+    return { strong, shortlisted, interviewed, invited };
+  }, [candidates]);
+
+  const visibleCandidates = React.useMemo(() => {
+    const q = crmQuery.trim().toLowerCase();
+    const filtered = candidates.filter((c) => {
+      if (crmFilter !== "all") {
+        if (crmFilter === "shortlisted" && c.status !== "SHORTLISTED" && c.status !== "INTERVIEW" && c.status !== "SELECTED") return false;
+        if (crmFilter === "interview" && (c.interview?.status ?? "") !== "COMPLETED") return false;
+        if (crmFilter === "selected" && c.status !== "SELECTED") return false;
+        if (crmFilter === "rejected" && c.status !== "REJECTED") return false;
+        if (crmFilter === "invited" && c.interview?.status !== "INVITED" && c.interview?.status !== "IN_PROGRESS") return false;
+      }
+      if (q) {
+        const haystack = `${c.candidate.name} ${c.candidate.email} ${c.candidate.phone ?? ""} ${c.job.title} ${c.job.companyName}`.toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      return true;
+    });
+
+    const sorted = [...filtered];
+    switch (crmSort) {
+      case "score":
+        sorted.sort((a, b) => (b.interview?.overall ?? -1) - (a.interview?.overall ?? -1));
+        break;
+      case "cv":
+        sorted.sort((a, b) => b.cvScore - a.cvScore);
+        break;
+      case "name":
+        sorted.sort((a, b) => a.candidate.name.localeCompare(b.candidate.name));
+        break;
+      default:
+        sorted.sort((a, b) => new Date(b.appliedAt).getTime() - new Date(a.appliedAt).getTime());
+    }
+    return sorted;
+  }, [candidates, crmQuery, crmFilter, crmSort]);
+
   return (
     <div className="mx-auto max-w-7xl py-8">
       <div className="flex flex-wrap items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
@@ -520,13 +568,72 @@ export default function AdminPage() {
               <div className="flex items-center gap-3">
                 <h2 className="text-lg font-semibold text-zinc-900">Candidates</h2>
                 <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-500">
-                  {candidates.length}
+                  {visibleCandidates.length} / {candidates.length}
                 </span>
               </div>
               <Button onClick={openAddModal}>
                 <Plus className="h-4 w-4" />
                 Add applicant
               </Button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                { label: "Strong matches (65+)", value: crmSummary.strong, tone: "text-emerald-600" },
+                { label: "Shortlisted", value: crmSummary.shortlisted, tone: "text-blue-600" },
+                { label: "Completed interviews", value: crmSummary.interviewed, tone: "text-violet-600" },
+                { label: "Awaiting interview", value: crmSummary.invited, tone: "text-amber-600" },
+              ].map((s) => (
+                <div key={s.label} className="rounded-xl bg-white px-4 py-3 ring-1 ring-zinc-200">
+                  <p className={cn("text-2xl font-bold tabular-nums", s.tone)}>{s.value}</p>
+                  <p className="mt-0.5 text-xs text-zinc-500">{s.label}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative min-w-[220px] flex-1 sm:max-w-xs">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                <Input
+                  className="pl-9"
+                  placeholder="Search name, email, job, company..."
+                  value={crmQuery}
+                  onChange={(e) => setCrmQuery(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {([
+                  ["all", "All"],
+                  ["invited", "Invited"],
+                  ["interview", "Interviewed"],
+                  ["shortlisted", "Shortlisted"],
+                  ["selected", "Selected"],
+                  ["rejected", "Rejected"],
+                ] as [CrmFilter, string][]).map(([key, label]) => (
+                  <button
+                    key={key}
+                    onClick={() => setCrmFilter(key)}
+                    className={cn(
+                      "rounded-full px-3 py-1.5 text-xs font-semibold transition-colors",
+                      crmFilter === key
+                        ? "bg-zinc-900 text-white"
+                        : "border border-zinc-200 bg-white text-zinc-500 hover:bg-zinc-50"
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <select
+                value={crmSort}
+                onChange={(e) => setCrmSort(e.target.value as CrmSort)}
+                className="ml-auto rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-zinc-600 focus:outline-none"
+              >
+                <option value="recent">Sort: Recent</option>
+                <option value="score">Sort: Overall score</option>
+                <option value="cv">Sort: CV score</option>
+                <option value="name">Sort: Name</option>
+              </select>
             </div>
 
             <div className="overflow-x-auto overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
@@ -545,14 +652,16 @@ export default function AdminPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-50">
-                  {candidates.length === 0 ? (
+                  {visibleCandidates.length === 0 ? (
                     <tr>
                       <td colSpan={9} className="px-5 py-10 text-center text-sm text-zinc-400">
-                        No candidate applications yet.
+                        {candidates.length === 0
+                          ? "No candidate applications yet."
+                          : "No candidates match your search or filters."}
                       </td>
                     </tr>
                   ) : (
-                    candidates.map((c) => (
+                    visibleCandidates.map((c) => (
                       <tr key={c.id} className="transition-colors hover:bg-zinc-50/50">
                         <td className="px-5 py-3.5">
                           <div className="flex items-center gap-3">
@@ -615,8 +724,8 @@ export default function AdminPage() {
               </table>
             </div>
             <p className="text-xs text-zinc-400">
-              The overall score blends the CV screening score with the AI interview score. Manage full candidate details and
-              decisions from the recruiter dashboard.
+              The overall score blends the CV screening score with the AI interview score. Manage full candidate details
+              and decisions from the recruiter dashboard.
             </p>
           </div>
         )}

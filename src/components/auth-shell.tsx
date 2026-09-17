@@ -21,7 +21,7 @@ export function AuthShell({
             — and the recruiters who hire them.
           </p>
           <div className="mt-8 space-y-3">
-            {["1,000s of internships and jobs", "Direct applications, no middlemen", "Track offers from one dashboard"].map(
+            {["New internships and jobs, added daily", "Direct applications, no middlemen", "Track offers from one dashboard"].map(
               (f) => (
                 <p key={f} className="flex items-center gap-2.5 text-sm text-zinc-300">
                   <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400">

@@ -52,7 +52,7 @@ export function Footer() {
             </p>
             <div className="mt-5 flex gap-2">
               <a
-                href="https://linkedin.com"
+                href="https://www.linkedin.com/company/upjobonline"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-zinc-500 shadow-sm ring-1 ring-zinc-200 transition-all hover:bg-zinc-900 hover:text-white"

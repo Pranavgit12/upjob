@@ -4,9 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
-  Sparkles,
   FileText,
-  Bookmark,
   User,
   Settings,
   Building2,
@@ -20,9 +18,7 @@ import { Logo } from "@/components/navbar";
 const CANDIDATE_LINKS = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/dashboard/ai", label: "AI Interview", icon: Video },
-  { href: "/dashboard/recommended", label: "Recommended Jobs", icon: Sparkles },
   { href: "/dashboard/applications", label: "Applications", icon: FileText },
-  { href: "/dashboard/saved", label: "Saved Jobs", icon: Bookmark },
   { href: "/dashboard/profile", label: "Profile", icon: User },
   { href: "/dashboard/resume", label: "CV Upload", icon: FileUp },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
@@ -55,11 +51,11 @@ export function DashboardSidebar({
 
       <div className="flex items-center gap-3 rounded-xl bg-zinc-50 p-3 ring-1 ring-zinc-100">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black text-sm font-semibold text-white">
-          {userName?.charAt(0) ?? "A"}
+          {userName?.charAt(0) ?? "U"}
         </div>
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-zinc-900">{userName ?? "Candidate"}</p>
-          <p className="truncate text-xs text-zinc-500">{userEmail ?? "candidate@upjob.app"}</p>
+          <p className="truncate text-sm font-semibold text-zinc-900">{userName ?? "My account"}</p>
+          <p className="truncate text-xs text-zinc-500">{userEmail ?? "Signed in"}</p>
         </div>
       </div>
 

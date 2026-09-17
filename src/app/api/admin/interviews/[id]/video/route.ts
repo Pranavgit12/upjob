@@ -17,7 +17,7 @@ export async function GET(_req: Request, { params }: Params) {
   const interview = await prisma.aiInterview.findUnique({
     where: { id },
     select: {
-      recordingDriveFileId: true,
+      recordingFileId: true,
       recordingMimeType: true,
       application: { select: { job: { select: { createdBy: true } } } },
     },
@@ -26,10 +26,10 @@ export async function GET(_req: Request, { params }: Params) {
   if (user.role === "employer" && interview.application.job.createdBy !== user.id) {
     return NextResponse.json({ error: "You don't manage this candidate" }, { status: 403 });
   }
-  if (!interview.recordingDriveFileId) return NextResponse.json({ error: "No recording available" }, { status: 404 });
+  if (!interview.recordingFileId) return NextResponse.json({ error: "No recording available" }, { status: 404 });
 
   try {
-    const stream = await getInterviewRecording(interview.recordingDriveFileId);
+    const stream = await getInterviewRecording(interview.recordingFileId);
     return new NextResponse(stream, {
       headers: {
         "Content-Type": interview.recordingMimeType ?? "video/webm",

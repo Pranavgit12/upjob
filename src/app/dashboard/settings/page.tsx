@@ -1,13 +1,40 @@
 "use client";
 
 import * as React from "react";
-import { Bell, Mail, Shield, Check } from "lucide-react";
+import Link from "next/link";
+import { Bell, Mail, Shield, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
+import { storeGet, storeSet } from "@/lib/store";
 
-const PREFERENCES = [
+const PREFS_KEY = "dashboardPreferences";
+
+interface ApiMeUser {
+  email?: string;
+  phone?: string | null;
+}
+
+interface Prefs {
+  newJobs: boolean;
+  applicationUpdates: boolean;
+  profileTips: boolean;
+  companyNews: boolean;
+  email: string;
+  phone: string;
+}
+
+const DEFAULT_PREFS: Prefs = {
+  newJobs: true,
+  applicationUpdates: true,
+  profileTips: false,
+  companyNews: false,
+  email: "",
+  phone: "",
+};
+
+const PREFERENCE_ROWS: { key: keyof Prefs; label: string; description: string }[] = [
   { key: "newJobs", label: "New job alerts", description: "Get notified when new jobs match your skills." },
   { key: "applicationUpdates", label: "Application updates", description: "Status changes on your applications." },
   { key: "profileTips", label: "Profile tips", description: "Occasional tips to improve your profile." },
@@ -16,16 +43,54 @@ const PREFERENCES = [
 
 export default function SettingsPage() {
   const { toast } = useToast();
-  const [prefs, setPrefs] = React.useState<Record<string, boolean>>({
-    newJobs: true,
-    applicationUpdates: true,
-    profileTips: false,
-    companyNews: false,
-  });
+  const [loaded, setLoaded] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+  const [prefs, setPrefs] = React.useState<Prefs>(DEFAULT_PREFS);
 
-  const save = () => {
-    toast("Settings saved", { type: "success" });
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/me", { cache: "no-store" });
+        const user: ApiMeUser | null = res.ok ? ((await res.json()).user as ApiMeUser) : null;
+        const stored = (await storeGet<Partial<Prefs>>(PREFS_KEY, {})) ?? {};
+        setPrefs({
+          ...DEFAULT_PREFS,
+          email: user?.email ?? "",
+          phone: user?.phone ?? "",
+          ...stored,
+        });
+      } catch {
+        setPrefs(DEFAULT_PREFS);
+      } finally {
+        setLoaded(true);
+      }
+    })();
+  }, []);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await storeSet(PREFS_KEY, prefs);
+      toast("Settings saved", { type: "success" });
+    } catch {
+      toast("Could not save settings", { type: "error" });
+    } finally {
+      setSaving(false);
+    }
   };
+
+  const toggle = (key: keyof Prefs) => {
+    if (typeof prefs[key] !== "boolean") return;
+    setPrefs((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  if (!loaded) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-zinc-400" />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -40,20 +105,20 @@ export default function SettingsPage() {
           Notifications
         </h2>
         <div className="mt-4 divide-y divide-zinc-100">
-          {PREFERENCES.map((p) => (
+          {PREFERENCE_ROWS.map((p) => (
             <label key={p.key} className="flex cursor-pointer items-center justify-between gap-4 py-4">
               <div>
                 <p className="text-sm font-medium text-zinc-800">{p.label}</p>
                 <p className="mt-0.5 text-xs text-zinc-500">{p.description}</p>
               </div>
               <button
-                onClick={() => setPrefs({ ...prefs, [p.key]: !prefs[p.key] })}
+                onClick={() => toggle(p.key)}
                 className={cn(
                   "relative h-6 w-11 shrink-0 rounded-full transition-colors",
                   prefs[p.key] ? "bg-black" : "bg-zinc-200"
                 )}
                 role="switch"
-                aria-checked={prefs[p.key]}
+                aria-checked={prefs[p.key] as boolean}
                 aria-label={p.label}
               >
                 <span
@@ -79,11 +144,20 @@ export default function SettingsPage() {
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label className="mb-1.5 block text-sm font-medium text-zinc-700">Notification email</label>
-            <Input defaultValue="aarav@upjob.app" />
+            <Input
+              type="email"
+              value={prefs.email}
+              onChange={(e) => setPrefs((prev) => ({ ...prev, email: e.target.value }))}
+            />
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-zinc-700">Phone</label>
-            <Input defaultValue="+91 98765 43210" />
+            <Input
+              type="tel"
+              value={prefs.phone}
+              placeholder="Phone number"
+              onChange={(e) => setPrefs((prev) => ({ ...prev, phone: e.target.value }))}
+            />
           </div>
         </div>
       </div>
@@ -94,13 +168,15 @@ export default function SettingsPage() {
           Security
         </h2>
         <div className="mt-4">
-          <Button variant="outline" onClick={() => toast("Reset link sent", { type: "info" })}>
-            Change password
+          <Button variant="outline" asChild>
+            <Link href="/forgot-password">Change password</Link>
           </Button>
         </div>
       </div>
 
-      <Button onClick={save}>Save Settings</Button>
+      <Button onClick={save} disabled={saving}>
+        {saving ? "Saving..." : "Save Settings"}
+      </Button>
     </div>
   );
 }

@@ -65,6 +65,28 @@ export async function destroySession(): Promise<void> {
   cookieStore.delete(SESSION_COOKIE);
 }
 
+const RESET_TOKEN_MAX_AGE = "60m";
+
+export async function createPasswordResetToken(userId: string): Promise<string> {
+  const token = await new SignJWT({ purpose: "password-reset" })
+    .setProtectedHeader({ alg: "HS256" })
+    .setSubject(userId)
+    .setIssuedAt()
+    .setExpirationTime(RESET_TOKEN_MAX_AGE)
+    .sign(secret);
+  return token;
+}
+
+export async function verifyPasswordResetToken(token: string): Promise<string | null> {
+  try {
+    const { payload } = await jwtVerify(token, secret);
+    if (payload.purpose !== "password-reset") return null;
+    return typeof payload.sub === "string" ? payload.sub : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getSessionUserId(): Promise<string | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;

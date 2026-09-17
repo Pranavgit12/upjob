@@ -217,6 +217,19 @@ export async function getFeaturedCompanies(): Promise<Company[]> {
   return rows.map((r) => toCompany(r as never));
 }
 
+export async function getJobCategoryCounts(): Promise<Record<string, number>> {
+  const rows = await prisma.job.groupBy({
+    by: ["category"],
+    where: { status: "OPEN" },
+    _count: { _all: true },
+  });
+  return Object.fromEntries(rows.map((r) => [r.category, r._count._all]));
+}
+
+export async function getOpenJobCount(): Promise<number> {
+  return prisma.job.count({ where: { status: "OPEN" } });
+}
+
 export interface InternshipItem {
   job: Job;
   domain: string;

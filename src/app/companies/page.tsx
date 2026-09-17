@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 export const metadata: Metadata = {
   title: "Explore Companies",
   description:
-    "Explore 150+ companies on UpJob. Discover startups, growing companies and leading enterprises across every industry.",
+    "Explore companies on UpJob. Discover startups, growing companies and leading enterprises across every industry.",
 };
 
 const PER_PAGE = 20;

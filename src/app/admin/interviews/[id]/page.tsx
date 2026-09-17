@@ -164,12 +164,12 @@ export default async function AdminInterviewDetailPage({ params }: Params) {
                   </div>
                 </div>
               </section>
-              {interview.recordingDriveFileId && (
+              {interview.recordingFileId && (
                 <section className="rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-sm">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <h2 className="text-sm font-semibold text-zinc-900">Interview video</h2>
-                      <p className="mt-1 text-xs text-zinc-500">Private recording loaded from Google Drive.</p>
+                      <p className="mt-1 text-xs text-zinc-500">Private recording.</p>
                     </div>
                     <a
                       href={`/api/admin/interviews/${interview.id}/video`}

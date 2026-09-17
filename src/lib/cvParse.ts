@@ -3,7 +3,6 @@
 
 import path from "path";
 import { uploadFile } from "./storage";
-import { uploadDriveFile, isDriveConfigured } from "./drive";
 
 export const MAX_CV_BYTES = (Number(process.env.MAX_CV_SIZE_MB) || 10) * 1024 * 1024;
 
@@ -69,15 +68,10 @@ function sniff(buffer: Buffer): "pdf" | "zip" | "ole" | "none" {
 }
 
 const CV_PREFIX = "cvs/";
-const DRIVE_PREFIX = "drive:";
 
 export async function saveCvFile(key: string, buffer: Buffer): Promise<{ key: string; url: string }> {
   const safe = key.replace(/[^a-zA-Z0-9._-]/g, "_");
   const url = `/api/cv/${encodeURIComponent(safe)}/download`;
-  if (isDriveConfigured()) {
-    const { fileId } = await uploadDriveFile(safe, buffer, cvMimeType(safe));
-    return { key: `${DRIVE_PREFIX}${fileId}`, url };
-  }
   const s3Key = `${CV_PREFIX}${safe}`;
   const contentType = cvMimeType(safe);
   await uploadFile(s3Key, buffer, contentType);

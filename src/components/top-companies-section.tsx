@@ -4,8 +4,6 @@ import { ArrowRight } from "lucide-react";
 import { getCompanies } from "@/lib/db-data";
 import { Button } from "@/components/ui/button";
 
-const companyCount = "800+";
-
 const LOGO_ASSETS = [
   { name: "Allianz", logo: "/logos/allianz-1.svg" },
   { name: "Coca-Cola", logo: "/logos/coca-cola-2021.svg" },
@@ -47,6 +45,7 @@ function CompanyCard({ name, logo, slug }: (typeof LOGO_ASSETS)[number] & { slug
 
 export async function TopCompaniesSection() {
   const companies = await getCompanies();
+  const companyCount = `${companies.length}+`;
   const companyByName = new Map(companies.map((company) => [company.name.toLowerCase(), company]));
   const logos = LOGO_ASSETS.map((asset) => ({
     ...asset,

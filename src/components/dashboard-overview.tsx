@@ -8,35 +8,30 @@ import {
   Bookmark,
   UserRound,
   ArrowRight,
-  Sparkles,
-  CalendarClock,
   ChevronRight,
 } from "lucide-react";
 import { StatsCard } from "@/components/stats-card";
-import { JobCard } from "@/components/job-card";
 import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/status-badge";
 import { calculateProfileCompletion } from "@/lib/profile";
 import { INITIAL_PROFILE } from "@/lib/profile";
-import { fetchApplications, fetchJobs, fetchProfile, fetchSavedJobIds } from "@/lib/client-data";
-import type { Application, CandidateProfile, Job } from "@/types";
+import { fetchApplications, fetchProfile, fetchSavedJobIds } from "@/lib/client-data";
+import type { Application, CandidateProfile } from "@/types";
 
 function DashboardOverviewInner() {
   const [applications, setApplications] = React.useState<Application[]>([]);
   const [savedIds, setSavedIds] = React.useState<string[]>([]);
   const [profile, setProfile] = React.useState<CandidateProfile>(INITIAL_PROFILE);
-  const [allJobs, setAllJobs] = React.useState<Job[]>([]);
   const [loaded, setLoaded] = React.useState(false);
 
   React.useEffect(() => {
     let mounted = true;
-    Promise.all([fetchApplications(), fetchSavedJobIds(), fetchProfile(), fetchJobs()]).then(
-      ([apps, saved, prof, jobs]) => {
+    Promise.all([fetchApplications(), fetchSavedJobIds(), fetchProfile()]).then(
+      ([apps, saved, prof]) => {
         if (!mounted) return;
         setApplications(apps);
         setSavedIds(saved);
         setProfile(prof);
-        setAllJobs(jobs);
         setLoaded(true);
       }
     );
@@ -47,12 +42,6 @@ function DashboardOverviewInner() {
 
   const completion = calculateProfileCompletion(profile);
   const interviews = applications.filter((a) => a.status === "Interview" || a.status === "Shortlisted");
-  const recommended = allJobs.filter((j) => {
-    const text = `${j.title} ${j.skills.join(" ")}`.toLowerCase();
-    return profile.skills.some((s) => text.includes(s.toLowerCase()));
-  });
-  const recList = recommended.length >= 3 ? recommended : allJobs.slice(0, 3);
-  const deadlines = allJobs.filter((j) => j.type === "Internship" && j.status === "open").slice(0, 4);
 
   if (!loaded) {
     return (
@@ -149,61 +138,7 @@ function DashboardOverviewInner() {
             )}
           </div>
         </section>
-
-        {/* Upcoming deadlines */}
-        <section className="rounded-2xl border border-zinc-200/80 bg-white shadow-sm">
-          <div className="border-b border-zinc-100 p-6 pb-4">
-            <h2 className="flex items-center gap-2 text-base font-semibold text-zinc-900">
-              <CalendarClock className="h-4 w-4 text-amber-500" />
-              Application deadlines
-            </h2>
-          </div>
-          <div className="space-y-3 p-6">
-            {deadlines.length === 0 ? (
-              <p className="text-sm text-zinc-500">No open internships right now.</p>
-            ) : (
-              deadlines.map((job) => (
-                <Link
-                  key={job.id}
-                  href={`/jobs/${job.id}`}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-zinc-100 p-3 transition-colors hover:bg-zinc-50"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-zinc-800">{job.title}</p>
-                    <p className="mt-0.5 truncate text-xs text-zinc-500">{job.companyName}</p>
-                  </div>
-                  <span className="shrink-0 text-xs font-semibold text-amber-600">
-                    {job.applicationDeadline}
-                  </span>
-                </Link>
-              ))
-            )}
-          </div>
-        </section>
       </div>
-
-      {/* Recommended */}
-      <section>
-        <div className="flex items-center justify-between">
-          <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight text-zinc-900">
-            <Sparkles className="h-4 w-4 text-blue-600" />
-            Recommended for you
-          </h2>
-          <Link href="/dashboard/recommended" className="text-sm font-medium text-blue-600 hover:underline">
-            See all
-          </Link>
-        </div>
-        {profile.skills.length > 0 && (
-          <p className="mt-1 text-sm text-zinc-500">
-            Based on your skills: {profile.skills.slice(0, 3).join(", ")}
-          </p>
-        )}
-        <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {recList.slice(0, 3).map((job) => (
-            <JobCard key={job.id} job={job} showApply={false} />
-          ))}
-        </div>
-      </section>
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ApplicationStatus } from "@prisma/client";
+import { sendEmail, applicationStatusEmail } from "@/lib/email";
 
 export const dynamic = "force-dynamic";
 
@@ -51,10 +52,28 @@ export async function PATCH(req: Request, { params }: Params) {
   const updated = await prisma.application.update({
     where: { id },
     data: data as never,
-    select: { id: true, status: true, recruiterNotes: true, updatedAt: true },
+    select: {
+      id: true,
+      status: true,
+      recruiterNotes: true,
+      updatedAt: true,
+      user: { select: { name: true, email: true } },
+      job: { select: { title: true, company: { select: { name: true } } } },
+    },
   });
 
-  return NextResponse.json({ application: updated });
+  if (data.status) {
+    const role = data.status as string;
+    const mail = applicationStatusEmail({
+      name: updated.user.name ?? "",
+      jobTitle: updated.job.title,
+      companyName: updated.job.company?.name ?? "",
+      status: role,
+    });
+    sendEmail({ to: updated.user.email, subject: mail.subject, html: mail.html, text: mail.text }).catch(() => {});
+  }
+
+  return NextResponse.json({ application: { id: updated.id, status: updated.status, recruiterNotes: updated.recruiterNotes, updatedAt: updated.updatedAt } });
 }
 
 // Candidate-owner view of their own application (used by the dashboard).

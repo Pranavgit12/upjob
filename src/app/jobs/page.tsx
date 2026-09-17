@@ -12,7 +12,7 @@ import type { Company, Job } from "@/types";
 export const metadata: Metadata = {
   title: "Jobs",
   description:
-    "Search thousands of jobs and internships from startups, growing companies and leading enterprises on UpJob.",
+    "Browse jobs and internships from startups, growing companies and leading enterprises on UpJob.",
 };
 
 export const dynamic = "force-dynamic";

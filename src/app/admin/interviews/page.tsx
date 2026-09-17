@@ -65,12 +65,12 @@ export default async function AdminInterviewsPage({ searchParams }: { searchPara
             { href: "/admin", label: "Overview" },
             { href: "/admin/interviews", label: "AI Interviews" },
             { href: "/admin/interviews/settings", label: "Settings" },
-          ].map((l, i) => (
+          ].map((l) => (
             <Link
               key={l.href}
               href={l.href}
               className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                (l.href === "/admin/interviews" && true) || (i === 0 && l.href === "/admin")
+                l.href === "/admin/interviews"
                   ? "bg-black text-white"
                   : "text-zinc-600 hover:bg-zinc-100"
               }`}

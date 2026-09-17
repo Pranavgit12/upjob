@@ -6,16 +6,12 @@ import {
   DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import {
-  getDriveFileBuffer,
-  getDriveFileStream,
-  deleteDriveFile,
-} from "./drive";
 
 const S3_ENDPOINT = process.env.S3_ENDPOINT || "";
 const S3_BUCKET = process.env.S3_BUCKET || "upjob-uploads";
 const S3_ACCESS_KEY = process.env.S3_ACCESS_KEY || "";
 const S3_SECRET_KEY = process.env.S3_SECRET_KEY || "";
+const S3_REGION = process.env.S3_REGION || "us-east-1";
 const UPLOADS_PUBLIC_URL = process.env.UPLOADS_PUBLIC_URL || "";
 
 let _client: S3Client | null = null;
@@ -30,7 +26,7 @@ function getClient(): S3Client {
   const url = new URL(S3_ENDPOINT);
   const isR2 = url.hostname.includes("r2.cloudflarestorage.com");
   _client = new S3Client({
-    region: isR2 ? "auto" : "us-east-1",
+    region: isR2 ? "auto" : S3_REGION,
     endpoint: S3_ENDPOINT,
     credentials: {
       accessKeyId: S3_ACCESS_KEY,
@@ -126,27 +122,14 @@ export async function getPresignedUrl(
   return getSignedUrl(client, command, { expiresIn });
 }
 
-const DRIVE_KEY_PREFIX = "drive:";
-
-export function isDriveKey(key: string): boolean {
-  return key.startsWith(DRIVE_KEY_PREFIX);
-}
-
-function driveFileId(key: string): string {
-  return key.slice(DRIVE_KEY_PREFIX.length);
-}
-
 export async function readFileBuffer(key: string): Promise<Buffer> {
-  if (isDriveKey(key)) return getDriveFileBuffer(driveFileId(key));
   return getFileBuffer(key);
 }
 
 export async function readFileStream(key: string): Promise<ReadableStream<Uint8Array>> {
-  if (isDriveKey(key)) return getDriveFileStream(driveFileId(key));
   return getFileStream(key);
 }
 
 export async function deleteStoredFile(key: string): Promise<void> {
-  if (isDriveKey(key)) return deleteDriveFile(driveFileId(key));
   return deleteFile(key);
 }

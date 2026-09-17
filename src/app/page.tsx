@@ -17,13 +17,12 @@ import {
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { HeroSearch } from "@/components/hero-search";
-import { JobCard } from "@/components/job-card";
 import { CompanyCard } from "@/components/company-card";
 import { TopCompaniesSection } from "@/components/top-companies-section";
+import { BenefitCards } from "@/components/benefit-cards";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { getFeaturedJobs } from "@/lib/db-data";
-import { getFeaturedCompanies } from "@/lib/db-data";
+import { getFeaturedCompanies, getJobCategoryCounts, getCompanies } from "@/lib/db-data";
 import { categories, careerResources } from "@/data/content";
 import { cn } from "@/lib/utils";
 
@@ -72,10 +71,10 @@ const WHY_POINTS = [
 ];
 
 export default async function HomePage() {
-  const [featuredJobs, featuredCompanies] = await Promise.all([
-    getFeaturedJobs(6),
-    getFeaturedCompanies(),
-  ]);
+  const featuredCompanies = await getFeaturedCompanies();
+  const categoryCounts = await getJobCategoryCounts();
+  const activeCategories = categories.filter((cat) => (categoryCounts[cat.name] ?? 0) > 0);
+  const companyCount = (await getCompanies()).length;
 
   return (
     <div className="flex flex-1 flex-col">
@@ -106,7 +105,7 @@ export default async function HomePage() {
           </div>
           <div className="mt-10 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm text-zinc-500">
             <span className="flex items-center gap-1.5">
-              <CheckCircle2 className="h-4 w-4 text-emerald-500" /> 150+ companies on UpJob
+              <CheckCircle2 className="h-4 w-4 text-emerald-500" /> {companyCount}+ companies on UpJob
             </span>
             <span className="flex items-center gap-1.5">
               <CheckCircle2 className="h-4 w-4 text-emerald-500" /> Free for job seekers
@@ -133,32 +132,6 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* FEATURED JOBS */}
-      <section className="container-upjob py-20">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <Badge variant="accent">Featured Jobs</Badge>
-            <h2 className="mt-3 text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">
-              Opportunities handpicked for you
-            </h2>
-            <p className="mt-2 text-sm text-zinc-500">
-              Fresh openings from startups, growing companies and leading enterprises.
-            </p>
-          </div>
-          <Button asChild variant="outline">
-            <Link href="/jobs">
-              View all jobs
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </Button>
-        </div>
-        <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {featuredJobs.map((job) => (
-            <JobCard key={job.id} job={job} />
-          ))}
-        </div>
-      </section>
-
       {/* POPULAR CATEGORIES */}
       <section className="border-y border-zinc-100 bg-zinc-50/50">
         <div className="container-upjob py-20">
@@ -172,7 +145,7 @@ export default async function HomePage() {
             </p>
           </div>
           <div className="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {categories.map((cat) => (
+            {activeCategories.map((cat) => (
               <Link
                 key={cat.name}
                 href={`/jobs?category=${encodeURIComponent(cat.name)}`}
@@ -189,7 +162,7 @@ export default async function HomePage() {
                 </span>
                 <div>
                   <p className="text-sm font-semibold text-zinc-900">{cat.name}</p>
-                  <p className="text-xs text-zinc-400">{cat.jobs.toLocaleString()}+ jobs</p>
+                  <p className="text-xs text-zinc-400">{categoryCounts[cat.name] ?? 0}+ jobs</p>
                 </div>
               </Link>
             ))}
@@ -333,71 +306,8 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* INTERNSHIP SECTION */}
-      <section className="border-y border-zinc-100 bg-zinc-50/50">
-        <div className="container-upjob py-20">
-          <div className="grid items-center gap-10 lg:grid-cols-2">
-            <div>
-              <Badge variant="accent">Internships</Badge>
-              <h2 className="mt-3 text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">
-                Launch your career with the right internship
-              </h2>
-              <p className="mt-4 text-sm leading-7 text-zinc-500">
-                Paid and unpaid internships across software, design, marketing, data, finance and
-                more. Filter by domain, stipend, duration and work mode to find the perfect fit.
-              </p>
-              <ul className="mt-6 space-y-3">
-                {[
-                  "Paid stipends up to ₹50,000/month",
-                  "Remote, hybrid and on-site internships",
-                  "Direct applications — no middlemen",
-                ].map((item) => (
-                  <li key={item} className="flex items-center gap-2.5 text-sm text-zinc-600">
-                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
-              <div className="mt-8 flex gap-3">
-                <Button asChild>
-                  <Link href="/internships">
-                    Explore Internships
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                </Button>
-                <Button asChild variant="outline">
-                  <Link href="/jobs">Browse All Jobs</Link>
-                </Button>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              {featuredJobs
-                .filter((j) => j.type === "Internship")
-                .slice(0, 4)
-                .map((job, i) => (
-                  <div
-                    key={job.id}
-                    className={cn(
-                      "rounded-2xl border border-zinc-200/80 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md",
-                      i % 2 === 1 && "lg:mt-8"
-                    )}
-                  >
-                    <p className="text-xs font-medium text-blue-600">{job.category}</p>
-                    <Link href={`/jobs/${job.id}`}>
-                      <h3 className="mt-1.5 text-sm font-semibold text-zinc-900 hover:text-blue-600">
-                        {job.title}
-                      </h3>
-                    </Link>
-                    <p className="mt-1 text-xs text-zinc-500">{job.location}</p>
-                    <p className="mt-2 text-sm font-semibold text-zinc-900">
-                      ₹{(job.salaryMin / 1000).toFixed(0)}K/month
-                    </p>
-                  </div>
-                ))}
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* BENEFITS */}
+      <BenefitCards />
 
       {/* CAREER RESOURCES */}
       <section className="container-upjob py-20">

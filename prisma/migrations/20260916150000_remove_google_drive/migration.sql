@@ -1,0 +1,1 @@
+ALTER TABLE "AiInterview" RENAME COLUMN "recordingDriveFileId" TO "recordingFileId";
