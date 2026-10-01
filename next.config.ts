@@ -16,10 +16,11 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  // Emits a self-contained server bundle with only the traced `node_modules`
-  // in `.next/standalone`, which is what the Docker runtime stage copies.
-  // Harmless when running `next start` from the repo root.
-  output: "standalone",
+  // `output: "standalone"` is opt-in, and only the Docker runtime stage needs
+  // it. Vercel builds and serves the app itself and does not use the standalone
+  // bundle, so it is off by default there rather than being a misleading second
+  // artifact. The Dockerfile sets NEXT_OUTPUT_STANDALONE=1 for its own build.
+  ...(process.env.NEXT_OUTPUT_STANDALONE === "1" ? { output: "standalone" as const } : {}),
   poweredByHeader: false,
   reactStrictMode: true,
 

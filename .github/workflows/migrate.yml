@@ -1,0 +1,82 @@
+name: Migrate and deploy
+
+# Applies pending Prisma migrations to the production database, then triggers
+# the Vercel deployment.
+#
+# The ordering is the whole point. Vercel auto-deploys on push, so without this
+# workflow new code reaches production while the schema is still missing the
+# OTP tables, and login breaks in the gap. Running the migration first and
+# firing a deploy hook afterwards means the app is never ahead of its schema.
+#
+# That requires turning OFF "Deploy on Push" in the Vercel project settings;
+# otherwise Vercel deploys on push as well and the race comes back. See
+# DEPLOYMENT.md.
+#
+# Required repository secrets (Settings > Secrets and variables > Actions):
+#   DATABASE_URL          production Postgres connection string
+#   VERCEL_DEPLOY_HOOK_URL  optional; omit and the migration still runs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "prisma/migrations/**"
+      - "prisma/schema.prisma"
+      - ".github/workflows/migrate.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: migrate-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    name: Apply migrations
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # Prisma's postinstall hook runs `prisma generate`, which loads
+      # prisma.config.ts. It reads DATABASE_URL, so the env must be present
+      # before install even though nothing connects to the database here.
+      - name: Install dependencies
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npm ci
+
+      - name: Verify schema and pending migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          npx prisma validate
+          npx prisma migrate status
+
+      - name: Apply migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        # `migrate deploy` never prompts and never generates a new migration, so
+        # it is safe to run unattended: it applies only what is already committed
+        # and fails loudly on a conflict instead of resetting the database.
+        run: npx prisma migrate deploy
+
+      - name: Trigger Vercel deployment
+        if: ${{ success() && secrets.VERCEL_DEPLOY_HOOK_URL != '' }}
+        run: |
+          curl -fsS -X POST "${{ secrets.VERCEL_DEPLOY_HOOK_URL }}"
+          echo "Deploy hook fired."
+
+      - name: Report missing deploy hook
+        if: ${{ success() && secrets.VERCEL_DEPLOY_HOOK_URL == '' }}
+        run: |
+          echo "::warning::VERCEL_DEPLOY_HOOK_URL is not set, so this run only migrated."
+          echo "If Vercel still has 'Deploy on Push' enabled it will deploy on its own,"
+          echo "after the migration - which is fine. Otherwise nothing was deployed."

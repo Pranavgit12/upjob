@@ -42,6 +42,8 @@ ENV DATABASE_URL="postgresql://placeholder:placeholder@localhost:5432/placeholde
 
 # Only NEXT_PUBLIC_* values are inlined into the client bundle at build time.
 # Server secrets are read at runtime from the container environment, never here.
+# Enables the standalone bundle that the runner stage below copies.
+ENV NEXT_OUTPUT_STANDALONE=1
 ARG NEXT_PUBLIC_APP_URL="http://localhost:3000"
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 # Keep the client-side upload cap and the server-side byte cap in agreement.

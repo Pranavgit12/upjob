@@ -1,27 +1,110 @@
 # Deploying UpJob
 
-Self-hosted deployment for the Next.js App Router app. Two supported paths:
+The primary path is **Vercel**. A self-hosted Docker path is kept for running
+the app on a VPS.
 
 | Path                | Use when                                                        |
 | ------------------- | --------------------------------------------------------------- |
-| **Docker Compose**  | Default. Brings up Postgres, runs migrations, starts the app.    |
+| **Vercel**          | Default. Serverless, managed TLS, no server to maintain.        |
+| **Docker Compose**  | Self-hosting on a VPS you control.                               |
 | **Manual / systemd**| Managed database, existing reverse proxy, or no Docker available. |
 
 ---
 
-## 1. Prerequisites
+## 1. Vercel (primary)
 
-- Node.js 20+ (the Docker images bundle their own Node 20)
-- Docker Engine 24+ with the Compose v2 plugin — for the Compose path
-- A domain with DNS pointed at the host
-- A TLS terminator: Caddy, nginx, or a cloud load balancer
+### 1.1 Project setup
+
+1. Import the repo at <https://github.com/Pranavgit12/upjob> into Vercel.
+2. Framework preset: **Next.js**. Build command `npm run build`, install
+   `npm ci` — both are already the defaults.
+3. Add the environment variables below under **Settings → Environment
+   Variables**, for **both** Production and Preview.
+
+> **`NEXT_PUBLIC_*` values are inlined into the client bundle at build time.**
+> Changing one in the Vercel UI has no effect until you redeploy. If
+> `NEXT_PUBLIC_APP_URL` is wrong the first time you build, password-reset and
+> OAuth links will point at the wrong origin and you must redeploy to fix it.
+> Use the **same value** for Preview and Production, or accept that preview
+> emails link back to production.
+
+Required:
+
+| Variable              | Notes                                                        |
+| --------------------- | ------------------------------------------------------------ |
+| `DATABASE_URL`        | Managed Postgres connection string.                         |
+| `AUTH_SECRET`         | ≥ 32 chars (`openssl rand -base64 48`). Rotating signs everyone out. |
+| `NEXT_PUBLIC_APP_URL` | Public origin, no trailing slash.                            |
+
+Strongly recommended:
+
+| Variable                     | Notes                                              |
+| ---------------------------- | -------------------------------------------------- |
+| `RESEND_API_KEY`             | Without it OTP login fails `503`.                  |
+| `RESEND_FROM_EMAIL`          | Must be a verified Resend domain.                  |
+| `GOOGLE_CLIENT_ID` / `_SECRET` | Add the callback URL shown in the Vercel dashboard. |
+| `S3_*`                       | Required for CV uploads and interview recordings.  |
+| `OTP_MODE`                   | `required` (default) · `optional` · `off`.         |
+
+### 1.2 Migrations
+
+Vercel does **not** run `prisma migrate deploy` for you. `.github/workflows/migrate.yml`
+does it on push to `main`, then fires a deploy hook.
+
+Add two repository secrets under **Settings → Secrets and variables → Actions**:
+
+| Secret                   | Value                                              |
+| ------------------------ | -------------------------------------------------- |
+| `DATABASE_URL`           | Production Postgres connection string.             |
+| `VERCEL_DEPLOY_HOOK_URL` | Project → Settings → Git → Deploy Hooks → Create. Optional. |
+
+Then **turn off "Deploy on Push"** in the Vercel project settings. If you leave
+it on, Vercel deploys immediately on push while the migration is still running,
+so the new code briefly serves traffic against a schema that has no
+`OtpChallenge` table and login fails. With auto-deploy off, the workflow migrates
+first and deploys second.
+
+If you would rather keep Vercel's auto-deploy, delete the hook secret and accept
+the race, or run `npx prisma migrate deploy` yourself before the deploy.
+
+### 1.3 Serverless caveats
+
+Two behaviours that are correct on a long-lived server but not on serverless
+functions, and that need an explicit decision from you:
+
+- **Rate limits are per-instance.** `src/lib/rate-limit.ts` keeps counters in
+  process memory. Vercel recycles instances and runs many in parallel, so
+  login/OTP/reset limits are **weaker than they look** and are not a reliable
+  brute-force defence. Put real limits at the edge — Vercel WAF / firewall
+  rules, or a rate-limit proxy — before treating them as one.
+- **Stateless sessions.** Sessions are JWTs, so horizontal scaling is fine and
+  no sticky sessions are needed.
+
+### 1.4 Verify
+
+```bash
+curl -fsS https://your-domain/api/health
+```
+
+Then sign in end to end: password → carrier picker → code → dashboard, and
+confirm the Resend email actually arrives. The health check only proves the
+database is reachable, not that OTP delivery works.
 
 ---
 
-## 2. Configure
+## 2. Docker Compose (self-hosted VPS)
+
+### 2.1 Prerequisites
+
+- Node.js 20+ (the images bundle their own Node 20)
+- Docker Engine 24+ with the Compose v2 plugin
+- A domain with DNS pointed at the host
+- A TLS terminator: Caddy, nginx, or a cloud load balancer
+
+### 2.2 Configure
 
 ```bash
-git clone <your-fork-url> upjob && cd upjob
+git clone https://github.com/Pranavgit12/upjob.git && cd upjob
 cp .env.example .env
 openssl rand -base64 48   # -> AUTH_SECRET
 ```
@@ -46,7 +129,7 @@ parameters.
 
 ---
 
-## 3. Deploy with Docker Compose
+## 3. Start the stack
 
 ```bash
 docker compose up -d --build
@@ -93,7 +176,13 @@ npm run start          # or systemd, pm2, etc.
 ```
 
 Environment comes from the process manager, not from a baked `.env` file.
-`.next/standalone` is produced by the build; `npm run start` serves it.
+The standalone bundle is only produced when `NEXT_OUTPUT_STANDALONE=1` is set,
+which the Dockerfile does for its own build. To deploy that way yourself:
+
+```bash
+NEXT_OUTPUT_STANDALONE=1 npm run build
+node .next/standalone/server.js
+```
 
 > **If you copy `.next/standalone` to the server, delete `.next/standalone/.env`
 > first.** The build copies your local `.env` into the standalone output, so that
@@ -181,9 +270,10 @@ docker compose exec -T db pg_dump -U upjob upjob | gzip > backup-$(date +%F).sql
 ### Scaling
 
 `src/lib/rate-limit.ts` keeps counters in process memory, so limits apply **per
-container**. Behind multiple replicas, enforce real limits at the edge (nginx
-`limit_req`) instead of trusting the app. Sessions are stateless JWTs, so
-horizontal scaling of the app itself is fine.
+container** — and per serverless instance on Vercel, where they are weakest of
+all (see §1.3). Behind multiple replicas, enforce real limits at the edge (nginx
+`limit_req`, or Vercel firewall rules) instead of trusting the app. Sessions are
+stateless JWTs, so horizontal scaling of the app itself is fine.
 
 ---
 
