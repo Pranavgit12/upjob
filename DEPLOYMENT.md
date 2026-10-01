@@ -277,7 +277,35 @@ stateless JWTs, so horizontal scaling of the app itself is fine.
 
 ---
 
-## 7. Troubleshooting
+## 7. Dependency audit
+
+`npm audit` is expected to report **3 high** vulnerabilities, all from a single
+`deepmerge-ts` advisory. This is deliberate — do not "fix" it without reading this.
+
+| Package       | Path                                          | In the deployed app? |
+| ------------- | --------------------------------------------- | -------------------- |
+| `deepmerge-ts`| `prisma` → `@prisma/config` (devDependency)   | No                  |
+| `mysql2`      | `prisma` (devDependency)                      | No — forced to 3.24.5 |
+
+Both are reachable only from the Prisma **CLI**, which runs at build/CI time
+(`prisma generate`, `migrate deploy`). Neither is a runtime dependency: the
+server uses `@prisma/adapter-pg` against Postgres, and `mysql2` is not traced
+into `.next` at all. The `mysql2` advisories are MySQL-specific (auth-plugin
+downgrade, protocol decompression bomb), which cannot apply to a Postgres app.
+
+The only "fix" npm offers is `npm audit fix --force`, which downgrades
+`@prisma/config` 7 → 6. That is a **breaking change** that would break
+`prisma.config.ts` and therefore `prisma generate` and `migrate deploy` — i.e. it
+would break the deployment pipeline to silence an advisory that is not
+exploitable here. Re-check after each `prisma` major upgrade.
+
+Fixed as of `next@16.3.8`: the critical RCE in `next/og`'s `ImageResponse` (not
+reachable — the app never imports `next/og`), plus `fast-uri` and
+`brace-expansion` in the dev/lint toolchain.
+
+---
+
+## 8. Troubleshooting
 
 **`Configuration validated` never appears, app exits immediately**
 A required production variable is missing or malformed. `register()` in
