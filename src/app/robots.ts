@@ -5,7 +5,19 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/dashboard", "/employer", "/admin", "/logout"],
+      // Auth and admin surfaces must never be indexed.
+      disallow: [
+        "/dashboard",
+        "/employer",
+        "/admin",
+        "/logout",
+        "/login",
+        "/signup",
+        "/reset-password",
+        "/forgot-password",
+        "/api/",
+        "/interview/",
+      ],
     },
     sitemap: "https://upjob.app/sitemap.xml",
   };

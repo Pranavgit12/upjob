@@ -43,6 +43,17 @@ enum ApplicationStatus {
   REJECTED
 }
 
+/// Delivery channel used to transport a one-time code. Each carrier maps to a
+/// separate transport implementation (see src/lib/carriers.ts).
+enum OtpCarrier {
+  EMAIL
+  SMS
+}
+
+enum OtpPurpose {
+  LOGIN
+}
+
 model User {
   id            String    @id @default(cuid())
   email         String    @unique
@@ -52,6 +63,13 @@ model User {
   phone         String?
   emailVerified Boolean   @default(false)
   image         String?
+  /// Bumped to invalidate every issued session cookie for this user.
+  sessionVersion Int       @default(0)
+  /// Whether this user is challenged for a one-time code during login.
+  /// Honoured when OTP_MODE=optional; ignored when OTP_MODE=required.
+  mfaEnabled      Boolean    @default(false)
+  /// Carrier the user picked most recently, so the picker opens on it.
+  preferredCarrier OtpCarrier?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -65,6 +83,34 @@ model User {
   reports            Report[]
   verifiedCompanies  Company[] @relation("CompanyVerifier")
   stores             UserStore[]
+  otpChallenges      OtpChallenge[]
+}
+
+/// A single in-flight one-time-code challenge. Rows are created when a code is
+/// dispatched and marked `consumedAt` the moment it is successfully redeemed.
+/// Codes are stored as bcrypt hashes — the plaintext only ever exists in the
+/// outbound email/SMS body.
+model OtpChallenge {
+  id          String      @id @default(cuid())
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose     OtpPurpose  @default(LOGIN)
+  carrier     OtpCarrier
+  /// Where the code was sent (email address or phone number).
+  destination String
+  /// bcrypt hash of the numeric code.
+  codeHash    String
+  attempts    Int         @default(0)
+  maxAttempts Int         @default(5)
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  /// Drives the resend cooldown independently of row creation.
+  lastSentAt  DateTime    @default(now())
+  createdAt   DateTime    @default(now())
+  verifiedAt  DateTime?
+
+  @@index([userId, purpose, consumedAt])
+  @@index([expiresAt])
 }
 
 model CandidateProfile {

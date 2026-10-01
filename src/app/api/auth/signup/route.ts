@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { createSession, toPrismaRole } from "@/lib/auth";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
 import type { UserRole } from "@/types";
+
+const SIGNUP_WINDOW_MS = 60 * 60 * 1000;
+const MAX_PER_IP = 10;
 
 export async function POST(req: Request) {
   let body: { name?: string; email?: string; password?: string; role?: UserRole };
@@ -27,6 +31,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Enter a valid email address" }, { status: 400 });
   }
 
+  // Without this, signup is an open account-factory for whoever wants one.
+  const ipLimit = rateLimit(`signup:ip:${clientIp(req.headers)}`, MAX_PER_IP, SIGNUP_WINDOW_MS);
+  if (!ipLimit.ok) {
+    return NextResponse.json(
+      { error: "Too many accounts created from this network. Please try again later." },
+      { status: 429, headers: { "Retry-After": String(ipLimit.retryAfter) } },
+    );
+  }
+
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
     return NextResponse.json({ error: "An account with this email already exists" }, { status: 409 });
@@ -35,10 +48,10 @@ export async function POST(req: Request) {
   const passwordHash = await bcrypt.hash(password, 12);
   const user = await prisma.user.create({
     data: { name, email, passwordHash, role: toPrismaRole(role) },
-    select: { id: true, email: true, name: true, role: true },
+    select: { id: true, email: true, name: true, role: true, sessionVersion: true },
   });
 
-  await createSession({ id: user.id, role });
+  await createSession({ id: user.id, role, sessionVersion: user.sessionVersion });
 
   return NextResponse.json(
     { user: { id: user.id, email: user.email, name: user.name, role } },

@@ -1,8 +1,12 @@
 import type { MetadataRoute } from "next";
 import { getCompanies, getOpenJobs } from "@/lib/db-data";
 
+// Generated per request. Prerendering queried Postgres during `next build`,
+// which made the build depend on a reachable database.
+export const dynamic = "force-dynamic";
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = "https://upjob.app";
+  const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://upjob.app").replace(/\/+$/, "");
   const now = new Date();
 
   const staticRoutes: MetadataRoute.Sitemap = [

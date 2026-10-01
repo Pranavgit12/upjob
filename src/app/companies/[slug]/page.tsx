@@ -18,6 +18,12 @@ import { CompanyBadgeSet } from "@/components/badges";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
+// Rendered per-request rather than prerendered. `generateStaticParams` used to
+// live here, but it forced `next build` to reach the production database — which
+// breaks container builds that have no DB access. Pass a live `DATABASE_URL` at
+// build time if you want to reintroduce build-time generation.
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata({
   params,
 }: {
@@ -30,10 +36,6 @@ export async function generateMetadata({
     title: `${company.name} — Company Profile`,
     description: `${company.description} Explore open roles and internships at ${company.name} on UpJob.`,
   };
-}
-
-export async function generateStaticParams() {
-  return (await getCompanies()).map((c) => ({ slug: c.slug }));
 }
 
 export default async function CompanyPage({

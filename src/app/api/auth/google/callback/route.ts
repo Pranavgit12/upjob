@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { createSession, toClientRole } from "@/lib/auth";
+import { createOtpChallengeToken, createSession, OTP_CHALLENGE_COOKIE, toClientRole } from "@/lib/auth";
+import { availableCarriers } from "@/lib/carriers";
+import { createOtpChallenge, OTP_RESEND_COOLDOWN_SECONDS } from "@/lib/otp";
+import { shouldChallengeForOtp } from "@/lib/otp-policy";
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -97,7 +100,50 @@ export async function GET(req: Request) {
   }
 
   const role = toClientRole(existing?.role ?? Role.CANDIDATE);
-  await createSession({ id: userId, role });
+
+  // Google proves identity but is still only one factor. Route through the same
+  // OTP challenge as password login, otherwise "Sign in with Google" silently
+  // becomes a way to bypass MFA.
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (user && shouldChallengeForOtp(user)) {
+    const carriers = availableCarriers(user, user.preferredCarrier);
+    const challenge =
+      carriers.length > 0
+        ? await createOtpChallenge({ user, carrier: carriers[0].id })
+        : null;
+
+    if (challenge?.delivered) {
+      const challengeToken = await createOtpChallengeToken({
+        userId: user.id,
+        challengeId: challenge.challengeId,
+      });
+      const response = NextResponse.redirect(`${appUrl}/login?verify=required`);
+      response.cookies.set(OTP_CHALLENGE_COOKIE, challengeToken, {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: OTP_RESEND_COOLDOWN_SECONDS * 20,
+      });
+      return response;
+    }
+
+    // Fail CLOSED. Issuing a session here would make OTP delivery an
+    // optional control that any fault in the mail transport silently disables -
+    // i.e. "Sign in with Google" would become a reliable MFA bypass. The user is
+    // redirected to the login page with an explanation and can retry once
+    // delivery recovers, or use the password flow. Admins are exempt by policy.
+    console.error(
+      `[auth] Google login for ${userId} could not deliver an OTP; refusing to issue a session.`,
+    );
+    return NextResponse.redirect(`${appUrl}/login?error=otp_unavailable`);
+  }
+
+  if (user) {
+    await createSession({ id: userId, role, sessionVersion: user.sessionVersion });
+  } else {
+    await createSession({ id: userId, role });
+  }
 
   return NextResponse.redirect(`${appUrl}/dashboard`);
 }

@@ -6,6 +6,8 @@ import { JobCard } from "@/components/job-card";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Internships",
   description:

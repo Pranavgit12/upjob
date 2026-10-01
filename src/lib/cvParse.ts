@@ -4,7 +4,21 @@
 import path from "path";
 import { uploadFile } from "./storage";
 
-export const MAX_CV_BYTES = (Number(process.env.MAX_CV_SIZE_MB) || 10) * 1024 * 1024;
+/**
+ * Single source of truth for the upload ceiling.
+ *
+ * `NEXT_PUBLIC_MAX_CV_SIZE_MB` is what the browser reads (inlined into the client
+ * bundle at build time); `MAX_CV_SIZE_MB` is the server-side knob. Resolving
+ * both from one value means an operator can set either and the two tiers always
+ * agree. Previously they were independent env vars, which let the client accept
+ * a file the server then rejected.
+ */
+export const MAX_CV_MB =
+  Number(process.env.NEXT_PUBLIC_MAX_CV_SIZE_MB) ||
+  Number(process.env.MAX_CV_SIZE_MB) ||
+  10;
+
+export const MAX_CV_BYTES = MAX_CV_MB * 1024 * 1024;
 
 export const ACCEPTED_EXTENSIONS = [".pdf", ".doc", ".docx"];
 

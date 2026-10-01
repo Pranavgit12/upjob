@@ -1,9 +1,11 @@
 import { Resend } from "resend";
 
-const resendApiKey = process.env.RESEND_API_KEY;
 const resendFrom = process.env.RESEND_FROM_EMAIL || "UpJob <onboarding@resend.dev>";
 
-const resend = resendApiKey ? new Resend(resendApiKey) : null;
+function getResend(): Resend | null {
+  const key = process.env.RESEND_API_KEY;
+  return key ? new Resend(key) : null;
+}
 
 const APP_NAME = "UpJob";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -16,8 +18,17 @@ interface SendEmailArgs {
 }
 
 export async function sendEmail({ to, subject, html, text }: SendEmailArgs) {
+  const resend = getResend();
   if (!resend) {
-    // No Resend key configured — log instead of failing (dev/self-hosting).
+    // In development, log instead of failing so the flow is testable offline.
+    // In production this MUST be a failure: reporting a code as "sent" when it
+    // was dropped on the floor leaves the user locked out with no error and no
+    // way to tell whether the code was wrong or simply never arrived.
+    const message = "RESEND_API_KEY is not configured, so the email was not delivered";
+    if (process.env.NODE_ENV === "production") {
+      console.error(`[email] ${message} (to: ${to}, subject: ${subject})`);
+      return { ok: false, error: message };
+    }
     console.info(`[email] Would send to ${to}: ${subject}`);
     return { ok: true, skipped: true };
   }
@@ -105,6 +116,35 @@ We received a request to reset your password. Open the link below to choose a ne
 ${resetUrl}
 
 If you didn't request this, you can safely ignore this email.`;
+  return { subject, html, text };
+}
+
+export function otpEmail({
+  name,
+  code,
+  expiresInMinutes,
+}: {
+  name: string;
+  code: string;
+  expiresInMinutes: number;
+}): { subject: string; html: string; text: string } {
+  const subject = `${code} is your UpJob verification code`;
+  const html = layout(`
+    <h1 style="margin:0 0 12px;font-size:18px;font-weight:700;color:#18181b;">Your verification code</h1>
+    <p style="margin:0 0 16px;">Hi ${escapeHtml(name || "there")},</p>
+    <p style="margin:0 0 20px;">Use this code to finish signing in to your UpJob account. It expires in ${expiresInMinutes} minutes and can only be used once.</p>
+    <p style="margin:0 0 24px;text-align:center;">
+      <span style="display:inline-block;letter-spacing:8px;font-size:30px;font-weight:700;color:#18181b;background-color:#f4f4f5;border:1px solid #e4e4e7;border-radius:12px;padding:16px 24px;">${escapeHtml(code)}</span>
+    </p>
+    <p style="margin:0 0 8px;">If this wasn't you, don't share the code with anyone and you can safely ignore this email.</p>
+  `);
+  const text = `${code} is your UpJob verification code
+
+Hi ${name || "there"},
+
+Use this code to finish signing in to your UpJob account. It expires in ${expiresInMinutes} minutes and can only be used once.
+
+If this wasn't you, don't share the code with anyone and you can safely ignore this email.`;
   return { subject, html, text };
 }
 

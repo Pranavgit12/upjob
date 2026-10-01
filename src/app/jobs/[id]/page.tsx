@@ -19,6 +19,10 @@ import { JobActionSidebar } from "@/components/job-action-sidebar";
 import { CompanyBadgeSet } from "@/components/badges";
 import { formatSalary } from "@/lib/utils";
 
+// Job detail pages are per-request: salaries and application counts must be
+// current, and prerendering would require a live database at build time.
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata({
   params,
 }: {

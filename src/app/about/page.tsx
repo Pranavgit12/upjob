@@ -8,6 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { CompanyLogo } from "@/components/company-logo";
 import { getFeaturedCompanies } from "@/lib/db-data";
 
+// Rendered per-request; the company logos read from Postgres. Prerendering
+// forced `next build` to reach a live database, which breaks container builds.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "About UpJob",
   description:

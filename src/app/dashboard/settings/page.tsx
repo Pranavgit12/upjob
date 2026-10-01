@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { storeGet, storeSet } from "@/lib/store";
+import { MfaSection } from "@/components/mfa-section";
 
 const PREFS_KEY = "dashboardPreferences";
 
@@ -167,11 +168,13 @@ export default function SettingsPage() {
           <Shield className="h-4 w-4 text-emerald-600" />
           Security
         </h2>
-        <div className="mt-4">
+        <div className="mt-4 flex flex-wrap items-center gap-3">
           <Button variant="outline" asChild>
             <Link href="/forgot-password">Change password</Link>
           </Button>
         </div>
+
+        <MfaSection />
       </div>
 
       <Button onClick={save} disabled={saving}>

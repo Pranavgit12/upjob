@@ -26,6 +26,11 @@ import { getFeaturedCompanies, getJobCategoryCounts, getCompanies } from "@/lib/
 import { categories, careerResources } from "@/data/content";
 import { cn } from "@/lib/utils";
 
+// Rendered per-request. The featured-companies and category strips read from
+// Postgres, and prerendering them forced `next build` to reach a live database,
+// which breaks container builds. Matches the rest of the DB-backed routes.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Find Your Next Opportunity",
   description:

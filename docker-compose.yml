@@ -1,0 +1,74 @@
+# UpJob — self-hosted stack.
+#
+#   cp .env.example .env      # then fill it in
+#   docker compose up -d --build
+#
+# The `migrate` service runs `prisma migrate deploy` to completion before the
+# app starts, so a deploy can never serve code against an out-of-date schema.
+#
+# The app's DATABASE_URL is composed from POSTGRES_USER/POSTGRES_PASSWORD/
+# POSTGRES_DB and always points at the `db` service. The value of DATABASE_URL in
+# .env is only used to override query parameters (see DATABASE_URL_SSL_PARAM),
+# so a stale `localhost` host left over from local development cannot break the
+# deployment. The `migrate` service reuses the same derivation.
+
+x-db-url: &db-url
+  postgresql://${POSTGRES_USER:-upjob}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-upjob}${DATABASE_URL_SSL_PARAM:-?schema=public}
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-upjob}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-upjob}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-upjob} -d ${POSTGRES_DB:-upjob}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    # Not published by default. Uncomment to connect a local client.
+    # ports:
+    #   - "5432:5432"
+
+  migrate:
+    build:
+      context: .
+      target: migrate
+    environment:
+      DATABASE_URL: *db-url
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    build:
+      context: .
+      target: runner
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+      # Derived, not copied. `localhost` inside a container is the app's own
+      # network namespace, not the db service, so a `DATABASE_URL` inherited
+      # from a local development .env would fail at runtime while still
+      # passing the health check. Any explicit host/params in DATABASE_URL are
+      # preserved.
+      DATABASE_URL: *db-url
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:

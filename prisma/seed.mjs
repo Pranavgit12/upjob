@@ -64,8 +64,21 @@ async function main() {
   const adapter = new PrismaPg({ connectionString });
   const prisma = new PrismaClient({ adapter });
 
-  const email = (process.env.ADMIN_EMAIL || "admin@upjob.app").trim().toLowerCase();
-  const password = process.env.ADMIN_PASSWORD || "Admin#2026";
+  const email = (process.env.ADMIN_EMAIL || "").trim().toLowerCase();
+  const password = process.env.ADMIN_PASSWORD || "";
+
+  // Previously these fell back to a published default ("admin@upjob.app" /
+  // "Admin#2026"). Running the seed without them provisioned a real ADMIN
+  // account with a guessable password. Refuse instead.
+  if (!email || !password) {
+    throw new Error(
+      "ADMIN_EMAIL and ADMIN_PASSWORD must both be set before seeding. " +
+        "Generate a password with: openssl rand -base64 24",
+    );
+  }
+  if (password.length < 12) {
+    throw new Error("ADMIN_PASSWORD must be at least 12 characters.");
+  }
 
   const passwordHash = await bcrypt.hash(password, 12);
 
@@ -82,6 +95,7 @@ async function main() {
   });
 
   console.log(`[seed] Admin ready: ${admin.email}`);
+  console.log("[seed] Change this password immediately via /dashboard/settings.");
   await seedCompanies(prisma, admin.id);
   await seedInternJobs(prisma, admin.id);
   await seedInterviewers(prisma);

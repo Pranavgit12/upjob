@@ -8,6 +8,10 @@ import { EmptyState } from "@/components/empty-state";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
+// Paginated and filtered listings are request-specific; rendering them at build
+// time would also require a live database.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Explore Companies",
   description:
