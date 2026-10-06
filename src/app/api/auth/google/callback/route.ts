@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
-import { Role } from "@prisma/client";
+import { cookies } from "next/headers";
+import { Prisma, Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { createOtpChallengeToken, createSession, OTP_CHALLENGE_COOKIE, toClientRole } from "@/lib/auth";
+import {
+  createOtpChallengeToken,
+  createSession,
+  OTP_CHALLENGE_COOKIE,
+  OAUTH_STATE_COOKIE,
+  toClientRole,
+} from "@/lib/auth";
 import { availableCarriers } from "@/lib/carriers";
 import { createOtpChallenge, OTP_RESEND_COOLDOWN_SECONDS } from "@/lib/otp";
 import { shouldChallengeForOtp } from "@/lib/otp-policy";
@@ -34,6 +41,17 @@ export async function GET(req: Request) {
 
   if (!googleClientId || !googleClientSecret) {
     return NextResponse.redirect(`${appUrl}/login?error=google_not_configured`);
+  }
+
+  // The `state` we minted in /api/auth/google must come back, and it must match
+  // this browser's cookie. Rejecting on mismatch blocks login CSRF, where an
+  // attacker's in-flight OAuth code is forced into a victim's session.
+  const cookieStore = await cookies();
+  const expectedState = cookieStore.get(OAUTH_STATE_COOKIE)?.value;
+  const returnedState = url.searchParams.get("state");
+  cookieStore.delete(OAUTH_STATE_COOKIE);
+  if (!expectedState || !returnedState || expectedState !== returnedState) {
+    return NextResponse.redirect(`${appUrl}/login?error=google_denied`);
   }
 
   const redirectUri = `${appUrl}/api/auth/google/callback`;
@@ -86,17 +104,34 @@ export async function GET(req: Request) {
         .catch(() => {});
     }
   } else {
-    const created = await prisma.user.create({
-      data: {
-        email,
-        name: userInfo.name || userInfo.given_name || email.split("@")[0],
-        role: Role.CANDIDATE,
-        emailVerified: Boolean(userInfo.verified_email),
-        image: userInfo.picture || null,
-      },
-      select: { id: true },
-    });
-    userId = created.id;
+    try {
+      const created = await prisma.user.create({
+        data: {
+          email,
+          name: userInfo.name || userInfo.given_name || email.split("@")[0],
+          role: Role.CANDIDATE,
+          emailVerified: Boolean(userInfo.verified_email),
+          image: userInfo.picture || null,
+        },
+        select: { id: true },
+      });
+      userId = created.id;
+    } catch (err) {
+      // A concurrent Google sign-in for the same brand-new address wins the
+      // race to the unique email constraint; treat it as an existing account.
+      const isDuplicate =
+        err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
+      const refetched = isDuplicate
+        ? await prisma.user.findUnique({ where: { email }, select: { id: true } })
+        : null;
+      if (refetched) {
+        userId = refetched.id;
+      } else if (isDuplicate) {
+        return NextResponse.redirect(`${appUrl}/login?error=google_failed`);
+      } else {
+        throw err;
+      }
+    }
   }
 
   const role = toClientRole(existing?.role ?? Role.CANDIDATE);

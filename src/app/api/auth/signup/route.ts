@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createSession, toPrismaRole } from "@/lib/auth";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
@@ -46,10 +47,24 @@ export async function POST(req: Request) {
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
-  const user = await prisma.user.create({
-    data: { name, email, passwordHash, role: toPrismaRole(role) },
-    select: { id: true, email: true, name: true, role: true, sessionVersion: true },
-  });
+  let user: { id: string; email: string; name: string; role: UserRole; sessionVersion: number };
+  try {
+    const row = await prisma.user.create({
+      data: { name, email, passwordHash, role: toPrismaRole(role) },
+      select: { id: true, email: true, name: true, role: true, sessionVersion: true },
+    });
+    // The row carries the DB enum value (e.g. "CANDIDATE"); the session type
+    // uses the lowercase UserRole, so reuse the variable we normalized earlier.
+    user = { ...row, role };
+  } catch (err) {
+    // Two concurrent signups for the same address race past the check above and
+    // collide on the unique email constraint. Surface it as a clean 409 instead
+    // of an unhandled Prisma error (500 with a hung client).
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      return NextResponse.json({ error: "An account with this email already exists" }, { status: 409 });
+    }
+    throw err;
+  }
 
   await createSession({ id: user.id, role, sessionVersion: user.sessionVersion });
 

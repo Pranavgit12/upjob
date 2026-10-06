@@ -3,10 +3,14 @@ import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { sanitizeNextPath } from "@/lib/utils";
 import type { UserRole } from "@/types";
 
 export const SESSION_COOKIE = "upjob_session";
 export const OTP_CHALLENGE_COOKIE = "upjob_otp_challenge";
+/** Binds the Google OAuth round-trip to the browser that started it (CSRF). */
+export const OAUTH_STATE_COOKIE = "upjob_oauth_state";
+export const OAUTH_STATE_MAX_AGE_SECONDS = 600;
 
 const DEV_FALLBACK_SECRET = "dev-only-insecure-secret-change-me";
 const MIN_PRODUCTION_SECRET_LENGTH = 32;
@@ -173,9 +177,12 @@ export async function createOtpChallengeToken(claims: {
   challengeId: string;
   next?: string | null;
 }): Promise<string> {
-  const next = claims.next?.trim();
+  // Sanitised here rather than at each call site: the value is minted into a
+  // signed cookie and replayed to the client as a redirect target, so a
+  // protocol-relative URL (`//evil.com`) must never survive to this point.
+  const next = sanitizeNextPath(claims.next);
   return signToken(
-    { challengeId: claims.challengeId, next: next ? next.slice(0, 512) : null },
+    { challengeId: claims.challengeId, next },
     claims.userId,
     PURPOSES.otpChallenge,
     OTP_CHALLENGE_MAX_AGE,
@@ -190,7 +197,7 @@ export async function verifyOtpChallengeToken(token: string): Promise<OtpChallen
   return {
     userId: sub,
     challengeId,
-    next: typeof next === "string" && next ? next : null,
+    next: sanitizeNextPath(next),
   };
 }
 

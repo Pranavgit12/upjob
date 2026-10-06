@@ -15,9 +15,10 @@ interface SendEmailArgs {
   subject: string;
   html: string;
   text?: string;
+  replyTo?: string;
 }
 
-export async function sendEmail({ to, subject, html, text }: SendEmailArgs) {
+export async function sendEmail({ to, subject, html, text, replyTo }: SendEmailArgs) {
   const resend = getResend();
   if (!resend) {
     // In development, log instead of failing so the flow is testable offline.
@@ -40,6 +41,7 @@ export async function sendEmail({ to, subject, html, text }: SendEmailArgs) {
       subject,
       html,
       text: text ?? undefined,
+      replyTo: replyTo || undefined,
     });
     if (error) {
       console.error(`[email] Resend error for ${to}:`, error.message);
@@ -177,10 +179,32 @@ Sign in at ${APP_URL}/dashboard to see the full details.`;
   return { subject, html, text };
 }
 
+/** Inbox message from the public contact form. Reply-to is the sender. */
+export function contactMessageEmail({
+  name,
+  email,
+  subject,
+  message,
+}: {
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+}): { subject: string; html: string; text: string } {
+  const mailSubject = `UpJob contact: ${subject}`;
+  const html = layout(`
+    <h1 style="margin:0 0 12px;font-size:18px;font-weight:700;color:#18181b;">${escapeHtml(subject)}</h1>
+    <p style="margin:0 0 12px;"><strong>${escapeHtml(name)}</strong> &lt;${escapeHtml(email)}&gt;</p>
+    <p style="margin:0 0 16px;white-space:pre-wrap;">${escapeHtml(message)}</p>
+  `);
+  const text = `From: ${name} <${email}>\nSubject: ${subject}\n\n${message}`;
+  return { subject: mailSubject, html, text };
+}
+
 const STATUS_LABELS: Record<string, string> = {
   SHORTLISTED: "Shortlisted",
   INTERVIEW: "Interview",
-  ACCEPTED: "Accepted",
+  SELECTED: "Selected",
   REJECTED: "Rejected",
   APPLIED: "Applied",
 };

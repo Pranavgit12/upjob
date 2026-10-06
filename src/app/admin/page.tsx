@@ -265,8 +265,8 @@ export default function AdminPage() {
   };
 
   const addApplicant = async () => {
-    if (!addForm.name.trim() || !addForm.email.trim() || addForm.password.length < 6) {
-      toast("Check the form", { type: "error", description: "Name, email and a 6+ character password are required." });
+    if (!addForm.name.trim() || !addForm.email.trim() || addForm.password.length < 8) {
+      toast("Check the form", { type: "error", description: "Name, email and a 8+ character password are required." });
       return;
     }
     if (!addForm.jobId) {

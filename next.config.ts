@@ -10,8 +10,12 @@ const securityHeaders = [
     value: "max-age=63072000; includeSubDomains; preload",
   },
   {
+    // camera/microphone must stay allowed for THIS origin: the AI interview
+    // captures the candidate's webcam and mic via getUserMedia, and a `()`
+    // denylist applies to the top-level document too, which would make every
+    // interview fail with NotAllowedError. Geolocation stays denied.
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=(), interest-cohort=()",
+    value: "camera=(self), microphone=(self), geolocation=(), interest-cohort=()",
   },
 ];
 

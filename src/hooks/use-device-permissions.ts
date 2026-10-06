@@ -79,6 +79,12 @@ export function useDevicePermissions() {
       if (animFrameRef.current != null) cancelAnimationFrame(animFrameRef.current);
       if (sourceRef.current) try { sourceRef.current.disconnect(); } catch {}
       if (audioCtxRef.current) audioCtxRef.current.close().catch(() => {});
+      // Release the camera/mic when this screen goes away. Without it the
+      // browser's "recording" indicator stays lit after the candidate leaves
+      // /interview/[token]/check, with no UI left to turn it off. The interview
+      // room re-acquires the stream itself when it needs one. Not `cleanupStream`
+      // — that sets state on an already unmounted component.
+      stopActiveDeviceStream();
     };
   }, []);
 

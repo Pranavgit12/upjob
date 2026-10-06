@@ -24,11 +24,19 @@ export function SaveButton({ jobId, variant = "default" }: { jobId: string; vari
     e.preventDefault();
     e.stopPropagation();
     if (saved) {
-      const savedJobs = await storeGet<string[]>(STORAGE_KEYS.savedJobs, []);
-      const next = savedJobs.filter((id) => id !== jobId);
-      await storeSet(STORAGE_KEYS.savedJobs, next);
-      setSaved(false);
-      router.refresh();
+      try {
+        const savedJobs = await storeGet<string[]>(STORAGE_KEYS.savedJobs, []);
+        const next = savedJobs.filter((id) => id !== jobId);
+        await storeSet(STORAGE_KEYS.savedJobs, next);
+        setSaved(false);
+        router.refresh();
+      } catch (error) {
+        // The save branch already guards this; the unsave branch must too,
+        // otherwise a 401 rejection surfaces as an unhandled promise.
+        if (error instanceof AuthRequiredError) {
+          router.push(`/login?next=${encodeURIComponent(window.location.pathname)}`);
+        }
+      }
       return;
     }
     try {

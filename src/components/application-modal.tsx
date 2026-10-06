@@ -50,6 +50,9 @@ export function ApplicationModal({
   const router = useRouter();
   const [step, setStep] = React.useState<"form" | "submitting" | "interview" | "success">("form");
   const [form, setForm] = React.useState<Record<string, string>>({});
+  // The File itself is kept, not just its name: handleSubmit uploads it to
+  // /api/cv and attaches the resulting resume to the application.
+  const [resumeFile, setResumeFile] = React.useState<File | null>(null);
   const [resume, setResume] = React.useState<string | null>(null);
   const [resumeError, setResumeError] = React.useState<string | null>(null);
   const [interviewToken, setInterviewToken] = React.useState<string | null>(null);
@@ -72,6 +75,7 @@ export function ApplicationModal({
         coverLetter: "",
       });
       setResume(null);
+      setResumeFile(null);
       setResumeError(null);
       setInterviewToken(null);
     }
@@ -84,14 +88,21 @@ export function ApplicationModal({
     if (!file) return;
     const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
     if (!isPdf) {
+      // Clear any previously accepted file, otherwise the stale one would
+      // still be submitted while the error message is on screen.
+      setResume(null);
+      setResumeFile(null);
       setResumeError("Only PDF files are accepted.");
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
+      setResume(null);
+      setResumeFile(null);
       setResumeError("Resume must be under 5 MB.");
       return;
     }
     setResume(file.name);
+    setResumeFile(file);
     toast("Resume selected", { type: "success", description: file.name });
   };
 
@@ -104,12 +115,29 @@ export function ApplicationModal({
         return;
       }
     }
-    if (!resume) {
+    if (!resume || !resumeFile) {
       toast("Please upload your resume", { type: "error" });
       return;
     }
     setStep("submitting");
     try {
+      // 1. Store the CV. This parses it and makes it the applicant's primary
+      //    resume, which is what the AI interview reads for question framing.
+      const upload = new FormData();
+      upload.append("file", resumeFile);
+      const uploadRes = await fetch("/api/cv", { method: "POST", body: upload });
+      if (uploadRes.status === 401) {
+        onOpenChange(false);
+        router.push(`/login?next=${encodeURIComponent(window.location.pathname)}`);
+        return;
+      }
+      const uploadData = await uploadRes.json().catch(() => null);
+      if (!uploadRes.ok) {
+        throw new Error(uploadData?.error || "Could not upload your resume");
+      }
+
+      // 2. Submit the application, linking that resume to it.
+      const resumeId = uploadData?.resume?.id as string | undefined;
       const res = await fetch("/api/applications", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -118,6 +146,7 @@ export function ApplicationModal({
           coverLetter: form.coverLetter ?? "",
           name: form.name ?? "",
           phone: form.phone ?? "",
+          resumeId,
         }),
       });
       if (res.status === 401) {
@@ -140,7 +169,11 @@ export function ApplicationModal({
         router.push(`/login?next=${encodeURIComponent(window.location.pathname)}`);
         return;
       }
-      toast("Could not submit application", { type: "error", description: "Please try again." });
+      toast("Could not submit application", {
+        type: "error",
+        description:
+          error instanceof Error && error.message ? error.message : "Please try again.",
+      });
       setStep("form");
     }
   };

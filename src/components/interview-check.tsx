@@ -511,7 +511,7 @@ export function InterviewCheck({ token }: { token: string }) {
           right back to start your interview.
         </p>
         <Link
-          href="/dashboard/resume?next=/interview"
+          href={`/dashboard/resume?next=${encodeURIComponent(`/interview/${token}/check`)}`}
           className="mt-6 inline-flex items-center gap-2 rounded-lg bg-black px-4 py-2 text-sm font-semibold text-white"
         >
           Upload CV

@@ -17,21 +17,25 @@ export async function GET(_req: Request, { params }: Params) {
 
   const resume = await prisma.resume.findUnique({
     where: { id },
-    include: {
-      user: {
-        include: {
-          applications: { select: { jobId: true } },
-        },
-      },
-    },
+    select: { id: true, userId: true, path: true, fileName: true, mimeType: true },
   });
   if (!resume) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const isOwner = resume.userId === user.id;
   const isAdmin = user.role === "admin";
-  const isEmployer = user.role === "employer";
-  if (!isOwner && !isAdmin && !isEmployer) {
-    return NextResponse.json({ error: "You don't have access to this file" }, { status: 403 });
+  if (!isOwner && !isAdmin) {
+    // Employers may only read the CV of a candidate who actually applied to a
+    // job they own. Without this check any employer could enumerate resume IDs
+    // and download every CV in the system.
+    if (user.role !== "employer") {
+      return NextResponse.json({ error: "You don't have access to this file" }, { status: 403 });
+    }
+    const appliedToOwnJob = await prisma.application.count({
+      where: { userId: resume.userId, job: { createdBy: user.id } },
+    });
+    if (appliedToOwnJob === 0) {
+      return NextResponse.json({ error: "You don't have access to this file" }, { status: 403 });
+    }
   }
 
   const s3Key = resume.path || "";

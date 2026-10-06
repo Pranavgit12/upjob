@@ -72,6 +72,11 @@ export function InterviewRoom({ token }: { token: string }) {
   const [finalMsg, setFinalMsg] = React.useState("");
   const [confirmAction, setConfirmAction] = React.useState<"skip" | "end" | null>(null);
   const [rateLimited, setRateLimited] = React.useState(false);
+  // True when a previous `finishInterview` attempt threw. The finish must be
+  // retried by the user (the error toast's Retry button), not by the once-per-
+  // second elapsed-time effect, so this both unlocks `finishingRef` and stops
+  // the auto-finish loop from hammering the endpoint.
+  const [finishFailed, setFinishFailed] = React.useState(false);
   const finishingRef = React.useRef(false);
   const submittingRef = React.useRef(false);
   const mediaRequestRef = React.useRef<Promise<boolean> | null>(null);
@@ -89,6 +94,7 @@ export function InterviewRoom({ token }: { token: string }) {
   const streamRef = React.useRef<MediaStream | null>(null);
   const recorderRef = React.useRef<MediaRecorder | null>(null);
   const recordingChunksRef = React.useRef<Blob[]>([]);
+  const pendingRecordingRef = React.useRef<Blob | null>(null);
   const sttRef = React.useRef<SttHandle | null>(null);
   const integrityRef = React.useRef<IntegrityMonitor | null>(null);
   const answerStartedAt = React.useRef<number>(0);
@@ -436,15 +442,21 @@ export function InterviewRoom({ token }: { token: string }) {
   };
 
   const uploadRecording = React.useCallback(async () => {
-    const recorder = recorderRef.current;
-    if (!recorder || recorder.state === "inactive") return;
-    await new Promise<void>((resolve) => {
-      recorder.addEventListener("stop", () => resolve(), { once: true });
-      recorder.stop();
-    });
-    recorderRef.current = null;
-    const blob = new Blob(recordingChunksRef.current, { type: recorder.mimeType || "video/webm" });
-    if (!blob.size) return;
+    // Keep the assembled blob until the upload actually succeeds: if the POST
+    // fails we must be able to retry without a recorder to re-stop.
+    if (!pendingRecordingRef.current) {
+      const recorder = recorderRef.current;
+      if (!recorder || recorder.state === "inactive") return;
+      await new Promise<void>((resolve) => {
+        recorder.addEventListener("stop", () => resolve(), { once: true });
+        recorder.stop();
+      });
+      recorderRef.current = null;
+      const blob = new Blob(recordingChunksRef.current, { type: recorder.mimeType || "video/webm" });
+      if (!blob.size) return;
+      pendingRecordingRef.current = blob;
+    }
+    const blob = pendingRecordingRef.current;
     const response = await fetch(`/api/interview/${token}/recording`, {
       method: "POST",
       headers: { "Content-Type": blob.type },
@@ -454,11 +466,13 @@ export function InterviewRoom({ token }: { token: string }) {
       const data = await response.json().catch(() => null);
       throw new Error(data?.error || "Could not save interview video");
     }
+    pendingRecordingRef.current = null;
   }, [token]);
 
   const finishInterview = React.useCallback(async () => {
     if (finishingRef.current) return;
     finishingRef.current = true;
+    setFinishFailed(false);
     try {
       await uploadRecording();
       const res = await fetch(`/api/interview/${token}/complete`, { method: "POST" });
@@ -471,15 +485,20 @@ export function InterviewRoom({ token }: { token: string }) {
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     } catch (err) {
+      // Release the guard, otherwise the candidate is stuck in `error` forever:
+      // the elapsed-time effect and the "Submit & finish" button both bail out
+      // while `finishingRef.current` is true, and no retry could ever run.
+      finishingRef.current = false;
+      setFinishFailed(true);
       setError(err instanceof Error ? err.message : "Could not finalize interview");
       setState("error");
     }
   }, [token, uploadRecording]);
 
   React.useEffect(() => {
-    if (!meta || state === "complete") return;
+    if (!meta || state === "complete" || finishFailed) return;
     if (elapsed >= meta.durationMinutes * 60) void finishInterview();
-  }, [elapsed, meta, state, finishInterview]);
+  }, [elapsed, meta, state, finishInterview, finishFailed]);
 
   const toggleCam = () => {
     const track = streamRef.current?.getVideoTracks()[0];
@@ -841,10 +860,21 @@ export function InterviewRoom({ token }: { token: string }) {
           {rateLimited ? <Clock className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
           {error}
           <button
-            onClick={retryQuestion}
+            onClick={() => {
+              if (finishFailed) {
+                // The failure was in finalisation (upload / complete), not in
+                // the current answer — re-running submitCurrentAnswer would
+                // never finish the interview.
+                setError(null);
+                setRateLimited(false);
+                void finishInterview();
+                return;
+              }
+              retryQuestion();
+            }}
             className="ml-1 rounded-full bg-white/20 px-2 py-0.5 text-xs font-semibold hover:bg-white/30"
           >
-            {rateLimited ? "Retry" : "Retry"}
+            Retry
           </button>
           <button onClick={() => { setError(null); setRateLimited(false); }} aria-label="Dismiss">
             <X className="h-4 w-4" />

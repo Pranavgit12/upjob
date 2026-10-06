@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { UploadCloud, FileText, Trash2, CheckCircle2, Info, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
+import { sanitizeNextPath } from "@/lib/utils";
 
 const MAX_MB = Number(process.env.NEXT_PUBLIC_MAX_CV_SIZE_MB) || 10;
 
@@ -27,19 +28,20 @@ export default function ResumeUploadPage() {
 
 function ResumeUploadForm() {
   const searchParams = useSearchParams();
-  const next = searchParams.get("next") || "/dashboard/ai";
+  const next = sanitizeNextPath(searchParams.get("next")) || "/dashboard/ai";
   const { toast } = useToast();
 
   const [busy, setBusy] = React.useState(false);
+  const [deleting, setDeleting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const [uploaded, setUploaded] = React.useState<{ fileName: string; parsed: ParsedCvSummary | null } | null>(null);
+  const [uploaded, setUploaded] = React.useState<{ id?: string; fileName: string; parsed: ParsedCvSummary | null } | null>(null);
 
   React.useEffect(() => {
     fetch("/api/cv", { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => {
         const primary = data?.resumes?.find((r: { isPrimary: boolean }) => r.isPrimary);
-        if (primary) setUploaded({ fileName: primary.fileName, parsed: primary.parsed ?? null });
+        if (primary) setUploaded({ id: primary.id, fileName: primary.fileName, parsed: primary.parsed ?? null });
       })
       .catch(() => {});
   }, []);
@@ -64,7 +66,7 @@ function ResumeUploadForm() {
       const res = await fetch("/api/cv", { method: "POST", body: form });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Upload failed");
-      setUploaded({ fileName: data.resume.fileName, parsed: data.resume.parsed ?? null });
+      setUploaded({ id: data.resume.id, fileName: data.resume.fileName, parsed: data.resume.parsed ?? null });
       toast("CV uploaded successfully ✓", { type: "success", description: "We parsed and stored your CV." });
       e.target.value = "";
     } catch (err) {
@@ -74,9 +76,30 @@ function ResumeUploadForm() {
     }
   };
 
-  const removeLocal = () => {
-    setUploaded(null);
-    toast("CV removed from view", { type: "info" });
+  // Actually deletes the CV on the server (S3 object + database row). The old
+  // behaviour only cleared local state, so the CV survived a refresh and stayed
+  // attached to any applications an employer could already see.
+  const deleteCv = async () => {
+    if (!uploaded?.id || deleting) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/cv/${uploaded.id}`, { method: "DELETE" });
+      if (res.status === 401) {
+        toast("Please sign in again", { type: "error" });
+        return;
+      }
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || "Could not delete your CV");
+      setUploaded(null);
+      toast("CV deleted", { type: "success", description: "Your CV was removed from your account." });
+    } catch (err) {
+      toast("Could not delete your CV", {
+        type: "error",
+        description: err instanceof Error && err.message ? err.message : "Please try again.",
+      });
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const parsed = uploaded?.parsed;
@@ -160,7 +183,7 @@ function ResumeUploadForm() {
                 </div>
               </div>
               {uploaded && (
-                <Button variant="ghost" size="sm" onClick={removeLocal}>
+                <Button variant="ghost" size="sm" onClick={() => void deleteCv()} disabled={deleting}>
                   <Trash2 className="h-4 w-4 text-red-500" />
                 </Button>
               )}

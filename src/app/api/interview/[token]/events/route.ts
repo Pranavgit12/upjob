@@ -38,12 +38,21 @@ export async function POST(req: Request, { params }: Params) {
     .slice(0, 50)
     .map((e) => e as Record<string, unknown>)
     .filter((e) => ALLOWED_EVENT_TYPES.has(String(e?.eventType)))
-    .map((e) => ({
-      interviewId: interview.id,
-      eventType: String(e.eventType),
-      metadata: e.metadata && typeof e.metadata === "object" ? (e.metadata as object) : {},
-      occurredAt: typeof e.occurredAt === "string" ? new Date(e.occurredAt) : new Date(),
-    }));
+    .map((e) => {
+      let occurredAt = new Date();
+      if (typeof e.occurredAt === "string") {
+        const parsed = new Date(e.occurredAt);
+        // Reject garbage timestamps instead of passing an Invalid Date to
+        // Prisma, which turns a malformed report into an unhandled 500.
+        if (!Number.isNaN(parsed.getTime())) occurredAt = parsed;
+      }
+      return {
+        interviewId: interview.id,
+        eventType: String(e.eventType),
+        metadata: e.metadata && typeof e.metadata === "object" ? (e.metadata as object) : {},
+        occurredAt,
+      };
+    });
 
   if (events.length) {
     await prisma.integrityEvent.createMany({ data: events });

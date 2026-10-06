@@ -2,10 +2,8 @@ import type { Metadata } from "next";
 import { Mail, MessagesSquare, Building2, ShieldCheck } from "lucide-react";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { ContactForm } from "@/components/contact-form";
 
 export const metadata: Metadata = {
   title: "Contact Us",
@@ -78,28 +76,7 @@ export default function ContactPage() {
           </div>
         </div>
 
-        <form className="rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-sm sm:p-8">
-          <h2 className="text-lg font-semibold text-zinc-900">Send a message</h2>
-          <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-zinc-700">Name</label>
-              <Input placeholder="Your name" />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-zinc-700">Email</label>
-              <Input type="email" placeholder="you@example.com" />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="mb-1.5 block text-sm font-medium text-zinc-700">Subject</label>
-              <Input placeholder="How can we help?" />
-            </div>
-            <div className="sm:col-span-2">
-              <label className="mb-1.5 block text-sm font-medium text-zinc-700">Message</label>
-              <Textarea rows={6} placeholder="Write your message here..." />
-            </div>
-          </div>
-          <Button className="mt-5">Send Message</Button>
-        </form>
+        <ContactForm />
       </section>
 
       <Footer />

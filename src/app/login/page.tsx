@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { AuthShell } from "@/components/auth-shell";
 import { OtpInput } from "@/components/otp-input";
 import { useToast } from "@/components/ui/toast";
-import { cn } from "@/lib/utils";
+import { cn, sanitizeNextPath } from "@/lib/utils";
 
 type Carrier = {
   id: "EMAIL" | "SMS";
@@ -65,7 +65,9 @@ export default function LoginPage() {
   // an effect and cached in a ref rather than derived during render.
   const nextParamRef = React.useRef<string | null>(null);
   React.useEffect(() => {
-    nextParamRef.current = new URLSearchParams(window.location.search).get("next");
+    nextParamRef.current = sanitizeNextPath(
+      new URLSearchParams(window.location.search).get("next"),
+    );
   }, []);
 
   React.useEffect(() => {
@@ -219,7 +221,11 @@ export default function LoginPage() {
       }
 
       toast("Welcome back!", { type: "success", description: "You're now signed in." });
-      router.push(data.user?.role === "admin" ? "/admin" : (nextParamRef.current || "/dashboard"));
+      router.push(
+        data.user?.role === "admin"
+          ? "/admin"
+          : sanitizeNextPath(nextParamRef.current) || "/dashboard",
+      );
       router.refresh();
     } catch {
       toast("Something went wrong", { type: "error", description: "Please try again." });
@@ -250,7 +256,10 @@ export default function LoginPage() {
           return;
         }
         toast("You're verified", { type: "success" });
-        router.push(data.next || (data.user?.role === "admin" ? "/admin" : "/dashboard"));
+        router.push(
+          sanitizeNextPath(data.next) ||
+            (data.user?.role === "admin" ? "/admin" : "/dashboard"),
+        );
         router.refresh();
       } catch {
         setCodeInvalid(true);

@@ -6,6 +6,7 @@ import { availableCarriers } from "@/lib/carriers";
 import { createOtpChallenge, OTP_RESEND_COOLDOWN_SECONDS } from "@/lib/otp";
 import { shouldChallengeForOtp } from "@/lib/otp-policy";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { sanitizeNextPath } from "@/lib/utils";
 
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_PER_IP = 20;
@@ -48,7 +49,7 @@ export async function POST(req: Request) {
   }
 
   const role = toClientRole(user.role);
-  const next = typeof body.next === "string" && body.next.startsWith("/") ? body.next : null;
+  const next = sanitizeNextPath(body.next);
 
   if (shouldChallengeForOtp(user)) {
     // Password is correct but no session is issued yet. The user must clear a

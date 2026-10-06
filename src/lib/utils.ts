@@ -5,6 +5,27 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Validates a post-login redirect target.
+ *
+ * `startsWith("/")` alone is not enough: `//evil.com` and `/\evil.com` are
+ * both protocol-relative URLs that a browser resolves to another origin, so a
+ * `?next=//evil.com` would bounce a freshly authenticated user to a site of the
+ * attacker's choosing. Anything that is not a single-slash same-origin path is
+ * rejected and the caller falls back to its default destination.
+ *
+ * Safe to import from client components — no server-only dependencies.
+ */
+export function sanitizeNextPath(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const path = value.trim();
+  if (path.length === 0 || path.length > 512) return null;
+  if (!path.startsWith("/")) return null;
+  if (path.startsWith("//") || path.startsWith("/\\")) return null;
+  if (path.includes("\\") || path.includes("\n") || path.includes("\r")) return null;
+  return path;
+}
+
 export function formatSalary(min: number, max: number | null, isStipend = false) {
   const prefix = isStipend ? "₹" : "₹";
   const fmt = (n: number) => {

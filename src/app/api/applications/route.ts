@@ -15,7 +15,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Admins cannot apply" }, { status: 403 });
   }
 
-  let body: { jobId?: unknown; coverLetter?: unknown; name?: unknown; phone?: unknown };
+  let body: {
+    jobId?: unknown;
+    coverLetter?: unknown;
+    name?: unknown;
+    phone?: unknown;
+    resumeId?: unknown;
+  };
   try {
     body = await req.json();
   } catch {
@@ -26,6 +32,27 @@ export async function POST(req: Request) {
   const coverLetter = typeof body?.coverLetter === "string" ? body.coverLetter.slice(0, 2000) : undefined;
   const name = typeof body?.name === "string" && body.name.trim() ? body.name.trim().slice(0, 160) : undefined;
   const phone = typeof body?.phone === "string" && body.phone.trim() ? body.phone.trim().slice(0, 24) : undefined;
+
+  // The submitted CV must belong to the applicant — never accept an arbitrary
+  // resume id, which would attach someone else's document to this application.
+  let resumeId: string | null = null;
+  if (typeof body?.resumeId === "string" && body.resumeId) {
+    const owned = await prisma.resume.findFirst({
+      where: { id: body.resumeId, userId: user.id },
+      select: { id: true },
+    });
+    if (!owned) return NextResponse.json({ error: "Resume not found" }, { status: 400 });
+    resumeId = owned.id;
+  } else {
+    // No explicit CV attached: fall back to the applicant's primary resume so
+    // the employer still gets a document to read.
+    const primary = await prisma.resume.findFirst({
+      where: { userId: user.id, isPrimary: true },
+      select: { id: true },
+      orderBy: { createdAt: "desc" },
+    });
+    resumeId = primary?.id ?? null;
+  }
 
   const job = await prisma.job.findUnique({
     where: { id: jobId },
@@ -43,6 +70,7 @@ export async function POST(req: Request) {
       userId: user.id,
       jobId,
       coverLetter: coverLetter || undefined,
+      resumeId,
     },
   });
 

@@ -62,6 +62,31 @@ interface ApiApplication {
   } | null;
 }
 
+// The DB stores ApplicationStatus as SCREAMING_SNAKE_CASE (APPLIED,
+// UNDER_REVIEW, …) while every UI component expects the display form
+// ("Applied", "Under Review", …). Casting the raw enum straight onto the type
+// made StatusBadge fall back to its default variant and rendered values like
+// "SHORTLISTED", and left `status === "Interview"` filters matching nothing.
+const STATUS_LABELS: Record<string, Application["status"]> = {
+  APPLIED: "Applied",
+  UNDER_REVIEW: "Under Review",
+  SHORTLISTED: "Shortlisted",
+  INTERVIEW: "Interview",
+  SELECTED: "Selected",
+  REJECTED: "Rejected",
+};
+
+export function toApplicationStatus(raw: unknown): Application["status"] {
+  const key = typeof raw === "string" ? raw.trim().toUpperCase() : "";
+  const known = STATUS_LABELS[key];
+  if (known) return known;
+  if (!key) return "Applied";
+  return key
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase()) as Application["status"];
+}
+
 export async function fetchApplications(): Promise<Application[]> {
   const data = (await getJSON<{ applications: ApiApplication[] }>("/api/applications"))?.applications ?? [];
   return data.map((a) => ({
@@ -72,7 +97,7 @@ export async function fetchApplications(): Promise<Application[]> {
     companyName: a.job.company?.name ?? "",
     companyLogo: a.job.company?.logo ?? undefined,
     appliedDate: a.createdAt.slice(0, 10),
-    status: a.status as Application["status"],
+    status: toApplicationStatus(a.status),
   }));
 }
 

@@ -126,6 +126,27 @@ function EmployerJobsPageContent() {
     toast("Job deleted", { type: "success", description: `${title} removed.` });
   };
 
+  const toggleJobStatus = async (job: EmployerJob) => {
+    const next = job.status === "open" ? "closed" : "open";
+    try {
+      const res = await fetch(`/api/jobs/${job.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: next }),
+      });
+      if (!res.ok) throw new Error("Update failed");
+      setJobs((cur) => cur.map((j) => (j.id === job.id ? { ...j, status: next } : j)));
+      toast(
+        next === "closed"
+          ? `"${job.title}" closed — candidates can no longer apply.`
+          : `"${job.title}" is open for applications again.`,
+        { type: "success" },
+      );
+    } catch {
+      toast("Update failed", { type: "error" });
+    }
+  };
+
   const addSkill = () => {
     if (!skillInput.trim()) return;
     setSkills([...skills, skillInput.trim()]);
@@ -346,7 +367,9 @@ function EmployerJobsPageContent() {
                     </Link>
                   </td>
                   <td className="hidden px-6 py-4 md:table-cell">
-                    <Badge variant="success">Open</Badge>
+                    <Badge variant={j.status === "open" ? "success" : "default"}>
+                      {j.status === "open" ? "Open" : "Closed"}
+                    </Badge>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-1">
@@ -359,8 +382,8 @@ function EmployerJobsPageContent() {
                       </Link>
                       <button
                         className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
-                        onClick={() => toast(`Close "${j.title}"`, { type: "error", description: "Posting closed. Reopen from the dashboard." })}
-                        title="Close"
+                        onClick={() => void toggleJobStatus(j)}
+                        title={j.status === "open" ? "Close job" : "Reopen job"}
                       >
                         <Pencil className="h-4 w-4" />
                       </button>

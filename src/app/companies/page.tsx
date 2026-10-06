@@ -141,14 +141,22 @@ export default async function CompaniesPage({
               ))}
             </div>
             <div className="flex items-center gap-3 text-sm">
-              <label className="flex items-center gap-1.5 text-zinc-600">
-                <input type="checkbox" checked={false} readOnly className="h-4 w-4 rounded accent-black" />
+              <Link
+                href={hiringOnly ? "/companies" : "/companies?hiring=1"}
+                className="flex items-center gap-1.5 text-zinc-600 hover:text-zinc-900"
+                aria-pressed={hiringOnly}
+              >
+                <input type="checkbox" checked={hiringOnly} readOnly className="h-4 w-4 rounded accent-black" />
                 Hiring only
-              </label>
-              <label className="flex items-center gap-1.5 text-zinc-600">
-                <input type="checkbox" checked={false} readOnly className="h-4 w-4 rounded accent-black" />
+              </Link>
+              <Link
+                href={internshipAvailable ? "/companies" : "/companies?internships=1"}
+                className="flex items-center gap-1.5 text-zinc-600 hover:text-zinc-900"
+                aria-pressed={internshipAvailable}
+              >
+                <input type="checkbox" checked={internshipAvailable} readOnly className="h-4 w-4 rounded accent-black" />
                 Has internships
-              </label>
+              </Link>
             </div>
           </div>
         </div>

@@ -2,9 +2,13 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { toClientJob } from "@/lib/db-data";
-import { JobStatus } from "@prisma/client";
+import { JobStatus, JobType, WorkMode } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
+
+const TEXT_FIELDS = ["title", "category", "location", "experience", "description"] as const;
+const LIST_FIELDS = ["skills", "responsibilities", "requirements", "benefits"] as const;
+const INT_FIELDS = ["salaryMin", "salaryMax", "vacancy"] as const;
 
 export async function GET(
   _req: Request,
@@ -37,14 +41,23 @@ export async function PATCH(
     return NextResponse.json({ error: "Only the owning employer can edit this job" }, { status: 403 });
   }
 
-  let body: Record<string, unknown>;
+  let payload: unknown;
   try {
-    body = await req.json();
+    payload = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return NextResponse.json({ error: "Invalid body" }, { status: 400 });
+  }
+  const body = payload as Record<string, unknown>;
 
+  // Explicit allow-list. The previous implementation copied every scalar in the
+  // body straight into `prisma.job.update`, so a caller could overwrite
+  // `createdBy` (transferring ownership), `isModerated` (clearing moderation) or
+  // send an invalid enum and trigger an unhandled Prisma error.
   const data: Record<string, unknown> = {};
+
   if (typeof body.status === "string") {
     const status = body.status.toLowerCase();
     if (status === "open") data.status = JobStatus.OPEN;
@@ -52,14 +65,67 @@ export async function PATCH(
     else if (status === "draft") data.status = JobStatus.DRAFT;
     else return NextResponse.json({ error: "Invalid status" }, { status: 400 });
   }
+
   if (typeof body.isModerated === "boolean") {
+    if (user.role !== "admin") {
+      return NextResponse.json({ error: "Only admins can change moderation" }, { status: 403 });
+    }
     data.isModerated = body.isModerated;
   }
-  for (const [key, value] of Object.entries(body)) {
-    if (key === "id" || key === "status" || key === "companyId" || key === "createdAt") continue;
-    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-      data[key] = value;
+
+  if (typeof body.type === "string") {
+    if (!Object.values(JobType).includes(body.type as JobType)) {
+      return NextResponse.json({ error: "Invalid job type" }, { status: 400 });
     }
+    data.type = body.type;
+  }
+  if (typeof body.workMode === "string") {
+    if (!Object.values(WorkMode).includes(body.workMode as WorkMode)) {
+      return NextResponse.json({ error: "Invalid work mode" }, { status: 400 });
+    }
+    data.workMode = body.workMode;
+  }
+
+  for (const key of TEXT_FIELDS) {
+    const value = body[key];
+    if (typeof value === "string") data[key] = value.slice(0, 10_000);
+  }
+
+  for (const key of LIST_FIELDS) {
+    const value = body[key];
+    if (Array.isArray(value)) {
+      data[key] = value
+        .filter((entry): entry is string => typeof entry === "string")
+        .map((entry) => entry.trim().slice(0, 300))
+        .filter(Boolean)
+        .slice(0, 60);
+    }
+  }
+
+  for (const key of INT_FIELDS) {
+    const value = body[key];
+    if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+      data[key] = Math.floor(value);
+    }
+  }
+
+  if (typeof body.isStipend === "boolean") data.isStipend = body.isStipend;
+
+  if ("applicationDeadline" in body) {
+    const raw = body.applicationDeadline;
+    if (raw === null || raw === "") {
+      data.applicationDeadline = null;
+    } else if (typeof raw === "string") {
+      const parsed = new Date(raw);
+      if (Number.isNaN(parsed.getTime())) {
+        return NextResponse.json({ error: "Invalid application deadline" }, { status: 400 });
+      }
+      data.applicationDeadline = parsed;
+    }
+  }
+
+  if (Object.keys(data).length === 0) {
+    return NextResponse.json({ error: "No updatable fields supplied" }, { status: 400 });
   }
 
   const updated = await prisma.job.update({
