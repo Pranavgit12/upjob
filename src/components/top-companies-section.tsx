@@ -1,7 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { getCompanies } from "@/lib/db-data";
 import { Button } from "@/components/ui/button";
 
 const LOGO_ASSETS = [
@@ -43,8 +42,11 @@ function CompanyCard({ name, logo, slug }: (typeof LOGO_ASSETS)[number] & { slug
   );
 }
 
-export async function TopCompaniesSection() {
-  const companies = await getCompanies();
+export function TopCompaniesSection({
+  companies,
+}: {
+  companies: Array<{ name: string; slug: string }>;
+}) {
   const companyCount = `${companies.length}+`;
   const companyByName = new Map(companies.map((company) => [company.name.toLowerCase(), company]));
   const logos = LOGO_ASSETS.map((asset) => ({

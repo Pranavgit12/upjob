@@ -22,7 +22,7 @@ import { TopCompaniesSection } from "@/components/top-companies-section";
 import { BenefitCards } from "@/components/benefit-cards";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { getFeaturedCompanies, getJobCategoryCounts, getCompanies } from "@/lib/db-data";
+import { getFeaturedCompanies, getJobCategoryCounts, getCompanyIndex } from "@/lib/db-data";
 import { categories, careerResources } from "@/data/content";
 import { cn } from "@/lib/utils";
 
@@ -76,10 +76,13 @@ const WHY_POINTS = [
 ];
 
 export default async function HomePage() {
-  const featuredCompanies = await getFeaturedCompanies();
-  const categoryCounts = await getJobCategoryCounts();
+  const [featuredCompanies, categoryCounts, companies] = await Promise.all([
+    getFeaturedCompanies(),
+    getJobCategoryCounts(),
+    getCompanyIndex(),
+  ]);
   const activeCategories = categories.filter((cat) => (categoryCounts[cat.name] ?? 0) > 0);
-  const companyCount = (await getCompanies()).length;
+  const companyCount = companies.length;
 
   return (
     <div className="flex flex-1 flex-col">
@@ -395,7 +398,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <TopCompaniesSection />
+      <TopCompaniesSection companies={companies} />
       <Footer />
     </div>
   );

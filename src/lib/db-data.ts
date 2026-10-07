@@ -198,6 +198,13 @@ export async function getCompanies(): Promise<Company[]> {
   return rows.map((r) => toCompany(r as never));
 }
 
+export async function getCompanyIndex(): Promise<Array<{ name: string; slug: string }>> {
+  return prisma.company.findMany({
+    select: { name: true, slug: true },
+    orderBy: { name: "asc" },
+  });
+}
+
 export async function getCompanyById(id: string): Promise<Company | null> {
   const row = await prisma.company.findUnique({ where: { id } });
   return row ? toCompany(row as never) : null;
