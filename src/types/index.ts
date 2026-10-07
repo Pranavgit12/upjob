@@ -47,6 +47,35 @@ export interface Job {
   vacancy?: number;
 }
 
+export type JobCardData = Pick<
+  Job,
+  | "id"
+  | "title"
+  | "companyId"
+  | "companyName"
+  | "location"
+  | "type"
+  | "workMode"
+  | "salaryMin"
+  | "salaryMax"
+  | "experience"
+>;
+
+export interface JobListing extends JobCardData {
+  category: string;
+  skills: string[];
+  createdAt: string;
+  company: Pick<Company, "name" | "industry" | "slug" | "isVerified">;
+}
+
+export interface InternshipListing {
+  job: JobCardData & { skills: string[] };
+  domain: string;
+  internshipType: WorkMode;
+  paid: boolean;
+  duration: string;
+}
+
 export type ApplicationStatus =
   | "Applied"
   | "Under Review"

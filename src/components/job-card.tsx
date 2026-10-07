@@ -4,16 +4,16 @@ import { Badge } from "@/components/ui/badge";
 import { CompanyLogo } from "@/components/company-logo";
 import { SaveButton } from "@/components/save-button";
 import { formatSalary, cn } from "@/lib/utils";
-import type { Company, Job } from "@/types";
+import type { Company, JobCardData } from "@/types";
 
 export function JobCard({
   job,
   showApply = true,
   company,
 }: {
-  job: Job;
+  job: JobCardData;
   showApply?: boolean;
-  company?: Company;
+  company?: Pick<Company, "name" | "isVerified">;
 }) {
   const companyName = company?.name ?? job.companyName;
   const isStipend = job.type === "Internship";

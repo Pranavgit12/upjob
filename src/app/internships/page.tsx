@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Briefcase, Building2, Clock } from "lucide-react";
-import { getInternships, getInternshipDomains } from "@/lib/db-data";
+import { getInternshipListings } from "@/lib/db-data";
 import { JobCard } from "@/components/job-card";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
@@ -25,8 +25,8 @@ export default async function InternshipsPage({
   const mode = typeof params.mode === "string" ? params.mode : "";
   const paid = typeof params.paid === "string" ? params.paid : "";
 
-  const internships = await getInternships();
-  const domains = ["All", ...(await getInternshipDomains())];
+  const internships = await getInternshipListings();
+  const domains = ["All", ...new Set(internships.map((internship) => internship.domain))];
 
   const filtered = internships.filter((i) => {
     if (q) {

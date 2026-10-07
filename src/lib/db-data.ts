@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { Company, Job, JobType, WorkMode } from "@/types";
+import type { Company, InternshipListing, Job, JobListing, JobType, WorkMode } from "@/types";
 
 const TYPE_MAP: Record<string, JobType> = {
   INTERNSHIP: "Internship",
@@ -164,6 +164,36 @@ export async function getOpenJobs(): Promise<Job[]> {
   return rows.map((r) => toJob(r as never));
 }
 
+export async function getOpenJobListings(): Promise<JobListing[]> {
+  const rows = await prisma.job.findMany({
+    where: { status: "OPEN" },
+    select: {
+      id: true,
+      title: true,
+      companyId: true,
+      category: true,
+      location: true,
+      type: true,
+      workMode: true,
+      salaryMin: true,
+      salaryMax: true,
+      experience: true,
+      skills: true,
+      createdAt: true,
+      company: { select: { name: true, industry: true, slug: true, isVerified: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return rows.map((row) => ({
+    ...row,
+    companyName: row.company.name,
+    type: mapType(row.type),
+    workMode: mapWorkMode(row.workMode),
+    createdAt: row.createdAt.toISOString().slice(0, 10),
+  }));
+}
+
 export async function getFeaturedJobs(count = 6): Promise<Job[]> {
   const rows = await prisma.job.findMany({
     where: { status: "OPEN" },
@@ -261,6 +291,47 @@ export async function getInternships(): Promise<InternshipItem[]> {
       duration: "3 months",
     };
   });
+}
+
+export async function getInternshipListings(): Promise<InternshipListing[]> {
+  const rows = await prisma.job.findMany({
+    where: { status: "OPEN", type: "INTERNSHIP" },
+    select: {
+      id: true,
+      title: true,
+      companyId: true,
+      category: true,
+      location: true,
+      type: true,
+      workMode: true,
+      salaryMin: true,
+      salaryMax: true,
+      experience: true,
+      skills: true,
+      company: { select: { name: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return rows.map((row) => ({
+    job: {
+      id: row.id,
+      title: row.title,
+      companyId: row.companyId,
+      companyName: row.company.name,
+      location: row.location,
+      type: mapType(row.type),
+      workMode: mapWorkMode(row.workMode),
+      salaryMin: row.salaryMin,
+      salaryMax: row.salaryMax,
+      experience: row.experience,
+      skills: row.skills,
+    },
+    domain: row.category || "General",
+    internshipType: mapWorkMode(row.workMode),
+    paid: row.salaryMin > 0,
+    duration: "3 months",
+  }));
 }
 
 export async function getInternshipDomains(): Promise<string[]> {

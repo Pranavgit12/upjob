@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { ListFilter } from "lucide-react";
-import { getOpenJobs, getCompanies } from "@/lib/db-data";
+import { getOpenJobListings } from "@/lib/db-data";
 import { JobCard } from "@/components/job-card";
 import { FilterSidebar } from "@/components/filter-sidebar";
 import { Pagination } from "@/components/pagination";
 import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/skeleton";
-import type { Company, Job } from "@/types";
+import type { JobListing } from "@/types";
 
 export const metadata: Metadata = {
   title: "Jobs",
@@ -23,7 +23,7 @@ function normalizeQuery(q: string): string {
   return q.toLowerCase().trim();
 }
 
-function matchesJob(job: Job, company: Company | undefined, terms: string[]) {
+function matchesJob(job: JobListing, terms: string[]) {
   const haystack = [
     job.title,
     job.location,
@@ -31,8 +31,8 @@ function matchesJob(job: Job, company: Company | undefined, terms: string[]) {
     job.type,
     job.workMode,
     job.experience,
-    company?.name ?? "",
-    company?.industry ?? "",
+    job.company.name,
+    job.company.industry,
     ...job.skills,
   ]
     .join(" ")
@@ -59,21 +59,19 @@ export default async function JobsPage({
   const types = type.split(",").filter(Boolean);
   const modes = workMode.split(",").filter(Boolean);
 
-  const [openJobs, allCompanies] = await Promise.all([getOpenJobs(), getCompanies()]);
-  const companyMap = new Map(allCompanies.map((c) => [c.id, c]));
+  const openJobs = await getOpenJobListings();
 
   let filtered = openJobs.filter((job) => {
-    const company = companyMap.get(job.companyId);
     if (q) {
       const terms = normalizeQuery(q).split(/\s+/);
-      if (!matchesJob(job, company, terms)) return false;
+      if (!matchesJob(job, terms)) return false;
     }
     if (location && !job.location.toLowerCase().includes(location.toLowerCase())) return false;
     if (category && job.category.toLowerCase() !== category.toLowerCase()) return false;
     if (types.length && !types.includes(job.type)) return false;
     if (modes.length && !modes.includes(job.workMode)) return false;
     if (experience && job.experience !== experience) return false;
-    if (companyParam && company?.slug !== companyParam) return false;
+    if (companyParam && job.company.slug !== companyParam) return false;
     return true;
   });
 
@@ -134,7 +132,7 @@ export default async function JobsPage({
               <>
                 <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
                   {pageItems.map((job) => (
-                    <JobCard key={job.id} job={job} company={companyMap.get(job.companyId)} />
+                <JobCard key={job.id} job={job} company={job.company} />
                   ))}
                 </div>
                 <Pagination page={page} totalPages={totalPages} className="mt-10" />
