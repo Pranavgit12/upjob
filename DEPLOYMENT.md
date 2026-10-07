@@ -36,6 +36,11 @@ Required:
 | `AUTH_SECRET`         | ≥ 32 chars (`openssl rand -base64 48`). Rotating signs everyone out. |
 | `NEXT_PUBLIC_APP_URL` | Public origin, no trailing slash.                            |
 
+For Vercel, set both `MAX_CV_SIZE_MB` and `NEXT_PUBLIC_MAX_CV_SIZE_MB` to `4`.
+Vercel Functions cap request bodies at 4.5 MB, including multipart overhead;
+the current CV route sends the file through a Function, so the 10 MB local
+default is too large for Vercel.
+
 Strongly recommended:
 
 | Variable                     | Notes                                              |
@@ -79,6 +84,14 @@ functions, and that need an explicit decision from you:
   rules, or a rate-limit proxy — before treating them as one.
 - **Stateless sessions.** Sessions are JWTs, so horizontal scaling is fine and
   no sticky sessions are needed.
+- **Interview recording uploads exceed Vercel's request limit.** The current
+  browser posts the completed recording to a Function, which then buffers it
+  before writing to S3-compatible storage. The Function request limit is 4.5 MB,
+  while this endpoint accepts up to 500 MB. Recordings larger than the platform
+  limit will receive a 413 before the handler runs. Supporting normal interview
+  recordings on Vercel requires uploading directly from the browser to object
+  storage with a short-lived signed URL, then finalizing the database record.
+  The current recording upload flow is therefore not production-ready on Vercel.
 
 ### 1.4 Verify
 
