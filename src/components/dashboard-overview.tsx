@@ -1,6 +1,3 @@
-"use client";
-
-import * as React from "react";
 import Link from "next/link";
 import {
   FileText,
@@ -14,48 +11,11 @@ import { StatsCard } from "@/components/stats-card";
 import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/status-badge";
 import { calculateProfileCompletion } from "@/lib/profile";
-import { INITIAL_PROFILE } from "@/lib/profile";
-import { fetchApplications, fetchProfile, fetchSavedJobIds } from "@/lib/client-data";
-import type { Application, CandidateProfile } from "@/types";
+import type { DashboardOverviewData } from "@/lib/dashboard-data";
 
-function DashboardOverviewInner() {
-  const [applications, setApplications] = React.useState<Application[]>([]);
-  const [savedIds, setSavedIds] = React.useState<string[]>([]);
-  const [profile, setProfile] = React.useState<CandidateProfile>(INITIAL_PROFILE);
-  const [loaded, setLoaded] = React.useState(false);
-
-  React.useEffect(() => {
-    let mounted = true;
-    Promise.all([fetchApplications(), fetchSavedJobIds(), fetchProfile()]).then(
-      ([apps, saved, prof]) => {
-        if (!mounted) return;
-        setApplications(apps);
-        setSavedIds(saved);
-        setProfile(prof);
-        setLoaded(true);
-      }
-    );
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
+export function DashboardOverview({ summary }: { summary: DashboardOverviewData }) {
+  const { applications, applicationCount, interviewCount, savedJobCount, profile } = summary;
   const completion = calculateProfileCompletion(profile);
-  const interviews = applications.filter((a) => a.status === "Interview" || a.status === "Shortlisted");
-
-  if (!loaded) {
-    return (
-      <div className="space-y-4">
-        <div className="h-8 w-64 animate-pulse rounded-lg bg-zinc-100" />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-28 animate-pulse rounded-2xl bg-zinc-100" />
-          ))}
-        </div>
-        <div className="h-32 animate-pulse rounded-2xl bg-zinc-100" />
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-8">
@@ -67,9 +27,9 @@ function DashboardOverviewInner() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatsCard title="Applications" value={applications.length} icon={FileText} />
-        <StatsCard title="Interviews" value={interviews.length} icon={Video} />
-        <StatsCard title="Saved Jobs" value={savedIds.length} icon={Bookmark} />
+        <StatsCard title="Applications" value={applicationCount} icon={FileText} />
+        <StatsCard title="Interviews" value={interviewCount} icon={Video} />
+        <StatsCard title="Saved Jobs" value={savedJobCount} icon={Bookmark} />
         <StatsCard title="Profile Completion" value={`${completion}%`} icon={UserRound} />
       </div>
 
@@ -112,7 +72,7 @@ function DashboardOverviewInner() {
             </Link>
           </div>
           <div className="divide-y divide-zinc-50">
-            {applications.length === 0 ? (
+            {applicationCount === 0 ? (
               <div className="p-6">
                 <EmptyState
                   title="No applications yet"
@@ -141,8 +101,4 @@ function DashboardOverviewInner() {
       </div>
     </div>
   );
-}
-
-export function DashboardOverview() {
-  return <DashboardOverviewInner />;
 }

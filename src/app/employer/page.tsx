@@ -40,18 +40,12 @@ export default async function EmployerPage() {
 
   const company = employer?.company ?? null;
 
-  const ownJobIds = company
-    ? (
-        await prisma.job.findMany({
-          where: { companyId: company.id },
-          select: { id: true },
-        })
-      ).map((j) => j.id)
-    : [];
+  const jobFilter = user?.role === "admin" ? {} : { companyId: company?.id ?? "" };
 
-  const allMyJobsPromise = user
-    ? prisma.job.findMany({
-        where: user.role === "admin" ? {} : { id: { in: ownJobIds } },
+  const [openRows, activeJobs, applications, shortlistedCount, interviewCount] = await Promise.all([
+    user
+      ? prisma.job.findMany({
+        where: jobFilter,
         select: {
           id: true,
           title: true,
@@ -66,24 +60,27 @@ export default async function EmployerPage() {
         orderBy: { createdAt: "desc" },
         take: 6,
       })
-    : Promise.resolve([]);
-
-  const [openRows, shortlistedCount, interviewCount] = await Promise.all([
-    allMyJobsPromise,
-    ownJobIds.length
+      : Promise.resolve([]),
+    user
+      ? prisma.job.count({ where: { ...jobFilter, status: "OPEN" } })
+      : Promise.resolve(0),
+    user
       ? prisma.application.count({
-          where: { jobId: { in: ownJobIds }, status: { in: ["SHORTLISTED", "INTERVIEW"] } },
+          where: user.role === "admin" ? {} : { job: { companyId: company?.id ?? "" } },
         })
       : Promise.resolve(0),
-    ownJobIds.length
-      ? prisma.aiInterview.count({
-          where: { application: { jobId: { in: ownJobIds } } },
+    user && user.role !== "admin" && company
+      ? prisma.application.count({
+          where: {
+            job: { companyId: company.id },
+            status: { in: ["SHORTLISTED", "INTERVIEW"] },
+          },
         })
+      : Promise.resolve(0),
+    user && user.role !== "admin" && company
+      ? prisma.aiInterview.count({ where: { application: { job: { companyId: company.id } } } })
       : Promise.resolve(0),
   ]);
-
-  const activeJobs = openRows.length;
-  const applications = openRows.reduce((sum, j) => sum + j._count.applications, 0);
 
   return (
     <div className="space-y-8">

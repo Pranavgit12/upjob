@@ -1,5 +1,6 @@
 // Client-side fetch helpers backed by the public data API routes.
 import type { Application, CandidateProfile, Company, Job } from "@/types";
+import { INITIAL_PROFILE } from "@/lib/profile";
 import { storeGet, STORAGE_KEYS } from "@/lib/store";
 
 async function getJSON<T>(url: string): Promise<T | null> {
@@ -102,28 +103,7 @@ export async function fetchApplications(): Promise<Application[]> {
 }
 
 export async function fetchProfile(): Promise<CandidateProfile> {
-  return storeGet<CandidateProfile>(STORAGE_KEYS.profile, {
-    name: "",
-    headline: "",
-    about: "",
-    location: "",
-    education: { degree: "", college: "", graduationYear: "", field: "" },
-    skills: [],
-    experience: [],
-    projects: [],
-    certifications: [],
-    github: "",
-    linkedin: "",
-    portfolio: "",
-    resumeUrl: "",
-    isProfilePhoto: false,
-    hasExperience: false,
-    hasEducation: false,
-    hasSkills: false,
-    hasProjects: false,
-    hasAbout: false,
-    hasContactInfo: false,
-  });
+  return storeGet<CandidateProfile>(STORAGE_KEYS.profile, INITIAL_PROFILE);
 }
 
 export async function fetchSavedJobIds(): Promise<string[]> {

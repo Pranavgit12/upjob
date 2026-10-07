@@ -1,4 +1,5 @@
 import { createHmac } from "node:crypto";
+import { cache } from "react";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { Role } from "@prisma/client";
@@ -226,7 +227,7 @@ export async function getSessionUserId(): Promise<string | null> {
   return payload.sub;
 }
 
-export async function getSessionUser(): Promise<SessionUser | null> {
+export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   const id = await getSessionUserId();
   if (!id) return null;
   const user = await prisma.user.findUnique({
@@ -235,6 +236,6 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   });
   if (!user) return null;
   return { id: user.id, email: user.email, name: user.name, role: toClientRole(user.role) };
-}
+});
 
 export { toClientRole, toPrismaRole };
